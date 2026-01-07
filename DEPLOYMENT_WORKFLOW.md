@@ -1,0 +1,145 @@
+# Deployment Workflow & Branch Protection
+
+## 🛡️ Branch Protection Strategy
+
+This project uses a **branch protection system** to prevent accidental commits to production.
+
+### Branch Structure
+
+- **`main`**: Production-ready code only. **PROTECTED** - cannot push directly.
+- **`staging`**: Pre-production testing environment (optional)
+- **`draft/*`**: All new features and changes (e.g., `draft/new-feature`, `draft/bugfix-xyz`)
+
+## 📋 Daily Workflow
+
+### Starting New Work
+
+**Always start from a draft branch:**
+
+```bash
+# Option 1: Use the helper script (recommended)
+./scripts/create-draft-branch.sh my-feature-name
+
+# Option 2: Manual
+git checkout -b draft/my-feature-name
+```
+
+### Making Changes
+
+```bash
+# 1. Make your changes to files
+
+# 2. Stage changes
+git add .
+
+# 3. Commit
+git commit -m "feat: description of your changes"
+
+# 4. Push to draft branch (safe, won't affect production)
+git push origin draft/my-feature-name
+```
+
+### Deploying to Production
+
+**Only when you explicitly approve:**
+
+```bash
+# 1. Make sure all changes are committed
+git status
+
+# 2. Switch to main
+git checkout main
+
+# 3. Pull latest changes (if working with remote)
+git pull origin main
+
+# 4. Merge your draft branch
+git merge draft/my-feature-name
+
+# 5. Push to main (pre-push hook will allow this after merge)
+git push origin main
+```
+
+## 🔒 Protection Mechanisms
+
+### 1. Pre-Push Hook
+
+A git hook prevents direct pushes to `main`. If you try to push directly to main, you'll get an error message with instructions.
+
+**Location:** `.git/hooks/pre-push`
+
+**To reinstall if needed:**
+```bash
+chmod +x scripts/pre-push-hook.sh
+cp scripts/pre-push-hook.sh .git/hooks/pre-push
+```
+
+### 2. Helper Scripts
+
+- **`scripts/create-draft-branch.sh`**: Creates a new draft branch safely
+- **`scripts/pre-push-hook.sh`**: Protection hook source
+
+## 🚨 Important Rules
+
+- ✅ **Always** create draft branches for new work
+- ✅ **Always** commit to draft branches first
+- ✅ **Only** merge to main when explicitly ready for production
+- ❌ **Never** commit directly to main
+- ❌ **Never** push directly to main (will be blocked)
+
+## 📝 Quick Reference
+
+### Check current branch
+```bash
+git branch --show-current
+```
+
+### List all draft branches
+```bash
+git branch --list 'draft/*'
+```
+
+### Switch to a draft branch
+```bash
+git checkout draft/branch-name
+```
+
+### Create new draft branch
+```bash
+./scripts/create-draft-branch.sh feature-name
+```
+
+## 🤖 For AI Assistants
+
+When making code changes:
+1. Check current branch: `git branch --show-current`
+2. If on `main`, create a draft branch first
+3. Make all changes on draft branch
+4. Only merge to `main` when user explicitly says:
+   - "deploy to production"
+   - "merge to main"
+   - "push to production"
+   - "ready for production"
+   - "merge [branch] to main"
+
+## 🔧 Troubleshooting
+
+### "I'm stuck on main branch"
+
+```bash
+# Create and switch to draft branch
+./scripts/create-draft-branch.sh current-work
+```
+
+### "Pre-push hook not working"
+
+```bash
+# Reinstall the hook
+chmod +x scripts/pre-push-hook.sh
+cp scripts/pre-push-hook.sh .git/hooks/pre-push
+chmod +x .git/hooks/pre-push
+```
+
+### "I need to merge but hook is blocking"
+
+The hook only blocks **direct pushes** to main. If you've merged locally, the push will work. The hook checks if you're trying to push commits that weren't merged from another branch.
