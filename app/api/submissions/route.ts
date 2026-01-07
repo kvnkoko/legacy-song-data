@@ -212,18 +212,39 @@ export async function POST(req: NextRequest) {
       message: error.message,
       stack: error.stack,
       name: error.name,
+      code: error.code,
     })
     
     // Ensure error message doesn't reference undefined variables
     let errorMessage = error.message || 'Failed to submit release'
+    
+    // Check for common database errors
+    if (error.code === 'P1001' || error.code === 'P1000') {
+      errorMessage = 'Database connection failed. Please check your connection and try again.'
+    } else if (error.code === 'P2002') {
+      errorMessage = 'A record with this information already exists. Please check your submission.'
+    } else if (error.code === 'P2025') {
+      errorMessage = 'Required data not found. Please refresh and try again.'
+    }
     
     // Check if error is related to missing artist data
     if (errorMessage.includes('artistName') && !errorMessage.includes('is required')) {
       errorMessage = 'Artist information is required. Please ensure at least one artist is selected.'
     }
     
+    // Don't expose internal error details in production
+    const isDevelopment = process.env.NODE_ENV === 'development'
+    const errorDetails = isDevelopment ? {
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+    } : undefined
+    
     return NextResponse.json(
-      { error: errorMessage },
+      { 
+        error: errorMessage,
+        ...(errorDetails && { details: errorDetails })
+      },
       { status: 500 }
     )
   }
