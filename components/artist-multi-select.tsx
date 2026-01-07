@@ -277,7 +277,7 @@ export function ArtistMultiSelect({
                 )}
                 <div className="flex-1 min-w-0">
                   <div className="font-medium truncate leading-relaxed pb-0.5">
-                    Create "{searchQuery.trim()}"
+                    Create &quot;{searchQuery.trim()}&quot;
                   </div>
                   <div className="text-xs text-muted-foreground leading-relaxed pt-0.5">
                     {isCreating ? 'Creating...' : 'Press Enter or click to create new artist'}

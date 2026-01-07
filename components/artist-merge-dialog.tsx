@@ -235,7 +235,7 @@ export function ArtistMergeDialog({
         <DialogHeader>
           <DialogTitle>Merge Artists</DialogTitle>
           <DialogDescription>
-            Merge "{sourceArtist.name}" into another artist. All releases and tracks will be transferred.
+            Merge &quot;{sourceArtist.name}&quot; into another artist. All releases and tracks will be transferred.
           </DialogDescription>
         </DialogHeader>
 
@@ -482,7 +482,7 @@ export function ArtistMergeDialog({
                   <SelectValue placeholder="Select option" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Don't add secondary artist</SelectItem>
+                  <SelectItem value="none">Don&apos;t add secondary artist</SelectItem>
                   <SelectItem value="existing">Select from existing artists</SelectItem>
                   <SelectItem value="new">Create new artist</SelectItem>
                 </SelectContent>

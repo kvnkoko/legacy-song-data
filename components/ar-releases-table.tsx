@@ -322,7 +322,7 @@ export function ArReleasesTable({
             className="gap-2"
           >
             <Calendar className="w-4 h-4" />
-            Artist's Date
+            Artist&apos;s Date
             {getSortIcon('artistsDate')}
           </Button>
           <Button

@@ -140,7 +140,7 @@ export function CalendarDayDetailDialog({
                         </Badge>
                         {release.artistsChosenDate && displayFields.showArtistsDate && (
                           <Badge variant="outline" className="border-primary/20 bg-muted/50 font-medium px-2.5 py-1">
-                            Artist's Date: {formatDate(release.artistsChosenDate)}
+                            Artist&apos;s Date: {formatDate(release.artistsChosenDate)}
                           </Badge>
                         )}
                         {release.copyrightStatus && displayFields.showCopyright && (
