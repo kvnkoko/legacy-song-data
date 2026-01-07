@@ -7,8 +7,11 @@ This project uses a **branch protection system** to prevent accidental commits t
 ### Branch Structure
 
 - **`main`**: Production-ready code only. **PROTECTED** - cannot push directly.
-- **`staging`**: Pre-production testing environment (optional)
+  - Deploys to: **Production URL** (e.g., `https://your-app.vercel.app`)
 - **`draft/*`**: All new features and changes (e.g., `draft/new-feature`, `draft/bugfix-xyz`)
+  - Test locally: `http://localhost:3001`
+  - Test online: **Preview URL** (e.g., `https://your-app-git-draft-feature.vercel.app`)
+  - Safe to experiment - won't affect production
 
 ## 📋 Daily Workflow
 
@@ -37,6 +40,9 @@ git commit -m "feat: description of your changes"
 
 # 4. Push to draft branch (safe, won't affect production)
 git push origin draft/my-feature-name
+
+# 5. (Optional) Test online - Vercel creates preview URL automatically
+# Check Vercel dashboard for preview URL
 ```
 
 ### Deploying to Production
@@ -58,6 +64,9 @@ git merge draft/my-feature-name
 
 # 5. Push to main (pre-push hook will allow this after merge)
 git push origin main
+
+# 6. Vercel automatically deploys to production!
+# Your production URL: https://your-app.vercel.app
 ```
 
 ## 🔒 Protection Mechanisms
@@ -121,6 +130,32 @@ When making code changes:
    - "push to production"
    - "ready for production"
    - "merge [branch] to main"
+
+## 🌐 Vercel Deployment
+
+This project is configured for Vercel deployment:
+
+- **Main branch** → Auto-deploys to **Production**
+- **Draft branches** → Auto-deploy to **Preview URLs** (test online before merging)
+
+See `VERCEL_SETUP.md` for complete setup instructions.
+
+### Quick Vercel Workflow
+
+**Test Draft Online:**
+```bash
+git push origin draft/my-feature
+# Vercel creates preview URL automatically
+# Check Vercel dashboard: https://vercel.com/dashboard
+```
+
+**Deploy to Production:**
+```bash
+git checkout main
+git merge draft/my-feature
+git push origin main
+# Auto-deploys to production URL
+```
 
 ## 🔧 Troubleshooting
 
