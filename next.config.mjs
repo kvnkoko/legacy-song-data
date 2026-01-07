@@ -26,6 +26,17 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
+  // Configure webpack to handle sharp properly
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      // Mark sharp as external for server-side (it will be bundled but not resolved at build time)
+      config.externals = config.externals || []
+      config.externals.push({
+        'sharp': 'commonjs sharp',
+      })
+    }
+    return config
+  },
 }
 
 export default nextConfig

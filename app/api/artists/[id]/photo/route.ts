@@ -67,7 +67,36 @@ export async function POST(
     
     // Resize and compress image to save space
     // Max dimensions: 800x800px, quality: 85%, format: WebP (smaller than JPEG)
-    const sharp = (await import('sharp')).default
+    let sharp
+    try {
+      sharp = (await import('sharp')).default
+    } catch (error) {
+      console.error('Sharp not available, using original image:', error)
+      // Fallback: use original buffer if sharp is not available
+      const key = `artists/${params.id}/photo.${file.name.split('.').pop()}`
+      await uploadFile(key, buffer, file.type)
+      
+      const updatedArtist = await prisma.artist.update({
+        where: { id: params.id },
+        data: { photo: key },
+      })
+      
+      await createAuditLog(prisma, {
+        userId: session.user.id,
+        entityType: 'artist',
+        entityId: params.id,
+        action: 'update',
+        fieldName: 'photo',
+        oldValue: artist.photo,
+        newValue: key,
+      })
+      
+      return NextResponse.json({
+        success: true,
+        photoUrl: getPublicUrl(key),
+      })
+    }
+    
     const optimizedBuffer = await sharp(buffer)
       .resize(800, 800, {
         fit: 'inside',
