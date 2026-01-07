@@ -90,7 +90,7 @@ export function DashboardSections({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatsCard
               title="Total Releases"
-              value={totalReleases}
+              value={totalReleases.toLocaleString()}
               description="All releases in the system"
               icon="Database"
               gradient
@@ -98,7 +98,7 @@ export function DashboardSections({
             />
             <StatsCard
               title="Total Artists"
-              value={totalArtists}
+              value={totalArtists.toLocaleString()}
               description="Registered artists"
               icon="Users"
               gradient
@@ -106,7 +106,7 @@ export function DashboardSections({
             />
             <StatsCard
               title="Total Tracks"
-              value={totalTracks}
+              value={totalTracks.toLocaleString()}
               description="All tracks across releases"
               icon="Music"
               gradient
@@ -114,7 +114,7 @@ export function DashboardSections({
             />
             <StatsCard
               title="Recent Releases"
-              value={recentReleasesCount}
+              value={recentReleasesCount.toLocaleString()}
               description="Latest additions"
               icon="Calendar"
               gradient
@@ -181,14 +181,14 @@ export function DashboardSections({
                           <Clock className="w-3 h-3" />
                           Pending
                         </div>
-                        <div className="text-2xl font-bold">{platform.pending}</div>
+                        <div className="text-2xl font-bold">{platform.pending.toLocaleString()}</div>
                       </div>
                       <div>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
                           <CheckCircle2 className="w-3 h-3" />
                           Approved
                         </div>
-                        <div className="text-2xl font-bold text-green-600 dark:text-green-400">{platform.approved}</div>
+                        <div className="text-2xl font-bold text-green-600 dark:text-green-400">{platform.approved.toLocaleString()}</div>
                       </div>
                     </CardContent>
                   </Card>
