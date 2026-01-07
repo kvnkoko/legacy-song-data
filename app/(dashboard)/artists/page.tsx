@@ -313,7 +313,7 @@ export default async function ArtistsPage({
                 actions={canEdit && (
                   <div className="flex flex-wrap gap-2 justify-center mt-4">
                     <ArtistEditButton artistId={artist.id} />
-                    <ArtistMergeButton artist={artist} />
+                    <ArtistMergeButton artist={artist as any} />
                     <ArtistDeleteButton 
                       artistId={artist.id} 
                       artistName={artist.name}
