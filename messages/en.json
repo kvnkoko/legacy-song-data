@@ -1,0 +1,100 @@
+{
+  "common": {
+    "appName": "Master Song Data",
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "search": "Search",
+    "filter": "Filter",
+    "export": "Export",
+    "import": "Import",
+    "submit": "Submit",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "close": "Close"
+  },
+  "auth": {
+    "signIn": "Sign In",
+    "signOut": "Sign Out",
+    "email": "Email",
+    "password": "Password",
+    "signInWithGoogle": "Sign in with Google"
+  },
+  "roles": {
+    "admin": "Admin",
+    "manager": "Manager",
+    "a_r": "A&R",
+    "data_team": "Data Team",
+    "platform_youtube": "YouTube Team",
+    "platform_flow": "Flow Team",
+    "platform_ringtunes": "Ringtunes Team",
+    "platform_international_streaming": "International Streaming Team",
+    "platform_facebook": "Facebook Team",
+    "platform_tiktok": "TikTok Team",
+    "client": "Client/Artist"
+  },
+  "release": {
+    "title": "Release",
+    "single": "Single",
+    "album": "Album",
+    "releaseTitle": "Release Title",
+    "artistsChosenDate": "Artist's Chosen Date",
+    "legacyReleaseDate": "Legacy Release Date",
+    "copyrightStatus": "Copyright Status",
+    "videoType": "Video Type",
+    "paymentRemarks": "Payment Remarks",
+    "notes": "Notes"
+  },
+  "track": {
+    "title": "Track",
+    "name": "Song Name",
+    "performer": "Performer",
+    "composer": "Composer",
+    "band": "Band/Music Producer",
+    "musicProducer": "Music Producer",
+    "studio": "Studio",
+    "recordLabel": "Record Label",
+    "genre": "Genre"
+  },
+  "artist": {
+    "title": "Artist",
+    "name": "Artist Name",
+    "legalName": "Legal Name",
+    "contactEmail": "Contact Email",
+    "contactPhone": "Contact Phone"
+  },
+  "platform": {
+    "youtube": "YouTube",
+    "flow": "Flow",
+    "ringtunes": "Ringtunes",
+    "international_streaming": "International Streaming",
+    "facebook": "Facebook",
+    "tiktok": "TikTok",
+    "request": "Request",
+    "status": "Status",
+    "pending": "Pending",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "uploaded": "Uploaded"
+  },
+  "submission": {
+    "title": "Submit Release",
+    "step1": "Artist Information",
+    "step2": "Release Details",
+    "step3": "Songs",
+    "step4": "Review",
+    "submitted": "Submitted",
+    "inReview": "In Review",
+    "scheduled": "Scheduled"
+  }
+}
+
+
+
+
+
+

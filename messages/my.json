@@ -1,0 +1,100 @@
+{
+  "common": {
+    "appName": "Master Song Data",
+    "loading": "တင်နေသည်...",
+    "save": "သိမ်းဆည်းရန်",
+    "cancel": "ပယ်ဖျက်ရန်",
+    "delete": "ဖျက်ရန်",
+    "edit": "ပြင်ဆင်ရန်",
+    "create": "ဖန်တီးရန်",
+    "search": "ရှာဖွေရန်",
+    "filter": "စစ်ထုတ်ရန်",
+    "export": "ထုတ်ယူရန်",
+    "import": "တင်သွင်းရန်",
+    "submit": "တင်သွင်းရန်",
+    "back": "နောက်သို့",
+    "next": "ရှေ့သို့",
+    "previous": "နောက်သို့",
+    "close": "ပိတ်ရန်"
+  },
+  "auth": {
+    "signIn": "ဝင်ရောက်ရန်",
+    "signOut": "ထွက်ရန်",
+    "email": "အီးမေးလ်",
+    "password": "စကားဝှက်",
+    "signInWithGoogle": "Google ဖြင့် ဝင်ရောက်ရန်"
+  },
+  "roles": {
+    "admin": "အက်မင်",
+    "manager": "မန်နေဂျာ",
+    "a_r": "A&R",
+    "data_team": "ဒေတာ အဖွဲ့",
+    "platform_youtube": "YouTube အဖွဲ့",
+    "platform_flow": "Flow အဖွဲ့",
+    "platform_ringtunes": "Ringtunes အဖွဲ့",
+    "platform_international_streaming": "နိုင်ငံတကာ Streaming အဖွဲ့",
+    "platform_facebook": "Facebook အဖွဲ့",
+    "platform_tiktok": "TikTok အဖွဲ့",
+    "client": "ဖောက်သည်/အနုပညာရှင်"
+  },
+  "release": {
+    "title": "ထုတ်ဝေမှု",
+    "single": "Single",
+    "album": "Album",
+    "releaseTitle": "ထုတ်ဝေမှု ခေါင်းစဉ်",
+    "artistsChosenDate": "အနုပညာရှင် ရွေးချယ်ထားသော ရက်စွဲ",
+    "legacyReleaseDate": "Legacy ထုတ်ဝေမှု ရက်စွဲ",
+    "copyrightStatus": "မူပိုင်ခွင့် အခြေအနေ",
+    "videoType": "ဗီဒီယို အမျိုးအစား",
+    "paymentRemarks": "ငွေပေးချေမှု မှတ်ချက်",
+    "notes": "မှတ်ချက်များ"
+  },
+  "track": {
+    "title": "တေးသီချင်း",
+    "name": "တေးသီချင်း အမည်",
+    "performer": "ဖျော်ဖြေသူ",
+    "composer": "ရေးစပ်သူ",
+    "band": "တီးဝိုင်း/ဂီတ ထုတ်လုပ်သူ",
+    "musicProducer": "ဂီတ ထုတ်လုပ်သူ",
+    "studio": "စတူဒီယို",
+    "recordLabel": "ဓာတ်ပြား လေဘယ်",
+    "genre": "အမျိုးအစား"
+  },
+  "artist": {
+    "title": "အနုပညာရှင်",
+    "name": "အနုပညာရှင် အမည်",
+    "legalName": "တရားဝင် အမည်",
+    "contactEmail": "ဆက်သွယ်ရန် အီးမေးလ်",
+    "contactPhone": "ဆက်သွယ်ရန် ဖုန်း"
+  },
+  "platform": {
+    "youtube": "YouTube",
+    "flow": "Flow",
+    "ringtunes": "Ringtunes",
+    "international_streaming": "နိုင်ငံတကာ Streaming",
+    "facebook": "Facebook",
+    "tiktok": "TikTok",
+    "request": "တောင်းဆိုမှု",
+    "status": "အခြေအနေ",
+    "pending": "စောင့်ဆိုင်းနေသည်",
+    "approved": "အတည်ပြုပြီး",
+    "rejected": "ငြင်းပယ်ပြီး",
+    "uploaded": "တင်ပြီး"
+  },
+  "submission": {
+    "title": "ထုတ်ဝေမှု တင်သွင်းရန်",
+    "step1": "အနုပညာရှင် အချက်အလက်",
+    "step2": "ထုတ်ဝေမှု အသေးစိတ်",
+    "step3": "တေးသီချင်းများ",
+    "step4": "ပြန်လည် စစ်ဆေးရန်",
+    "submitted": "တင်သွင်းပြီး",
+    "inReview": "စစ်ဆေးနေသည်",
+    "scheduled": "စီစဉ်ထားသည်"
+  }
+}
+
+
+
+
+
+

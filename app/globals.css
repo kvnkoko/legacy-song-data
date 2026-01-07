@@ -1,0 +1,483 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Respect user's motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Myanmar font support */
+@layer base {
+  .font-myanmar {
+    font-family: 'Myanmar3', 'Padauk', 'Noto Sans Myanmar', sans-serif;
+  }
+  
+  /* Ensure Myanmar text is not cut off - proper line-height and padding */
+  /* Table cells need extra padding for Myanmar text to prevent bottom clipping */
+  td, th {
+    padding-top: 0.75rem !important;
+    padding-bottom: 0.75rem !important;
+    line-height: 1.6 !important;
+  }
+  
+  /* Small text needs more line-height to prevent Myanmar character clipping */
+  .text-xs {
+    line-height: 1.6 !important;
+    padding-bottom: 0.125rem;
+  }
+  
+  .text-sm {
+    line-height: 1.6 !important;
+    padding-bottom: 0.125rem;
+  }
+  
+  /* Truncate should preserve line-height for Myanmar text */
+  .truncate {
+    line-height: 1.6 !important;
+  }
+  
+  /* Ensure proper spacing in table cells with Myanmar text */
+  [class*="TableCell"], [class*="table-cell"] {
+    padding-top: 0.75rem !important;
+    padding-bottom: 0.75rem !important;
+    line-height: 1.6 !important;
+  }
+}
+
+/* Satoshi Variable Font */
+@font-face {
+  font-family: 'Satoshi';
+  src: url('https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,600,700,800,900&display=swap');
+  font-weight: 300 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@layer base {
+  :root {
+    /* Light mode - Clean, minimal with Flow Purple accents */
+    color-scheme: light;
+    --background: 0 0% 100%;
+    --foreground: 0 0% 0%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 0%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 0%;
+    --primary: 240 100% 67%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 10%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 64%;
+    --accent: 240 100% 67%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --success: 145 100% 75%;
+    --success-foreground: 0 0% 0%;
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 240 100% 67%;
+    --radius: 0.75rem;
+    
+    /* Flow Purple color scale (Purple 1 to Purple 3) */
+    --flow-purple-50: 234 100% 97%;
+    --flow-purple-100: 234 100% 94%;
+    --flow-purple-200: 234 100% 88%;
+    --flow-purple-300: 234 100% 82%;
+    --flow-purple-400: 234 100% 78%;
+    --flow-purple-500: 234 100% 74%;
+    --flow-purple-600: 240 100% 67%;
+    --flow-purple-700: 250 100% 50%;
+    --flow-purple-800: 260 100% 40%;
+    --flow-purple-900: 260 100% 30%;
+    --flow-purple-950: 260 100% 26%;
+    
+    /* Flow Green (accent - use sparingly) */
+    --flow-green: 145 100% 75%;
+    --flow-green-foreground: 0 0% 0%;
+    
+    /* Flow Grey */
+    --flow-grey: 0 0% 64%;
+    --flow-grey-light: 0 0% 90%;
+    --flow-grey-dark: 0 0% 40%;
+  }
+
+  .dark {
+    /* Dark mode - Rich, deep backgrounds with Flow Purple highlights */
+    color-scheme: dark;
+    --background: 0 0% 4%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 5%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 5%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 234 100% 74%;
+    --primary-foreground: 0 0% 4%;
+    --secondary: 0 0% 16%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 16%;
+    --muted-foreground: 0 0% 64%;
+    --accent: 240 100% 67%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --success: 145 100% 75%;
+    --success-foreground: 0 0% 0%;
+    --border: 0 0% 16%;
+    --input: 0 0% 16%;
+    --ring: 234 100% 74%;
+    
+    /* Flow Purple color scale for dark mode */
+    --flow-purple-50: 260 100% 26%;
+    --flow-purple-100: 260 100% 30%;
+    --flow-purple-200: 260 100% 40%;
+    --flow-purple-300: 250 100% 50%;
+    --flow-purple-400: 240 100% 60%;
+    --flow-purple-500: 240 100% 67%;
+    --flow-purple-600: 234 100% 74%;
+    --flow-purple-700: 234 100% 78%;
+    --flow-purple-800: 234 100% 82%;
+    --flow-purple-900: 234 100% 88%;
+    --flow-purple-950: 234 100% 94%;
+    
+    /* Flow Green (accent - use sparingly) */
+    --flow-green: 145 100% 75%;
+    --flow-green-foreground: 0 0% 0%;
+    
+    /* Flow Grey */
+    --flow-grey: 0 0% 64%;
+    --flow-grey-light: 0 0% 30%;
+    --flow-grey-dark: 0 0% 80%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Satoshi', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: -0.011em;
+  }
+  
+  /* Enhanced Typography Scale - Premium feel */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+    letter-spacing: -0.02em;
+  }
+  
+  h1 {
+    @apply text-4xl md:text-5xl;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+  }
+  
+  h2 {
+    @apply text-3xl md:text-4xl;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    line-height: 1.2;
+  }
+  
+  h3 {
+    @apply text-2xl md:text-3xl;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.3;
+  }
+  
+  h4 {
+    @apply text-xl md:text-2xl;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    line-height: 1.4;
+  }
+  
+  p {
+    @apply leading-relaxed;
+    letter-spacing: -0.01em;
+  }
+  
+  /* Text shadows for depth in dark mode */
+  .dark h1,
+  .dark h2,
+  .dark h3 {
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+  
+  /* Smooth transitions for theme changes and interactions */
+  * {
+    transition-property: background-color, border-color, color, fill, stroke, opacity, transform, box-shadow;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 250ms;
+  }
+  
+  /* Faster, smoother theme transitions to prevent visible blinking */
+  html {
+    transition-property: color-scheme;
+    transition-duration: 150ms;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  /* Optimize color transitions during theme changes - faster to reduce visible flash */
+  /* This ensures theme switches are smooth without text blinking */
+  html.transitioning-theme,
+  html.transitioning-theme * {
+    transition-duration: 150ms !important;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1) !important;
+  }
+  
+  /* Specific optimization for text color during theme transitions */
+  html.transitioning-theme p,
+  html.transitioning-theme h1,
+  html.transitioning-theme h2,
+  html.transitioning-theme h3,
+  html.transitioning-theme h4,
+  html.transitioning-theme h5,
+  html.transitioning-theme h6,
+  html.transitioning-theme span,
+  html.transitioning-theme div,
+  html.transitioning-theme label {
+    transition-duration: 150ms !important;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1) !important;
+  }
+  
+  /* Exclude transform from transitions for performance-critical elements */
+  button, a, [role="button"] {
+    transition-property: background-color, border-color, color, fill, stroke, opacity, transform, box-shadow;
+    transition-duration: 250ms;
+  }
+  
+  /* Improved focus states */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+  
+  /* Override Radix UI default animations to prevent "flying" effect */
+  /* The global * rule includes transform in transitions, which causes the "flying" effect */
+  /* We need to completely disable transform transitions for Radix components */
+  [data-radix-select-content],
+  [data-radix-dropdown-menu-content],
+  [data-radix-popover-content],
+  [data-radix-context-menu-content],
+  [data-radix-tooltip-content],
+  [data-radix-dropdown-menu-sub-content],
+  [data-radix-popper-content-wrapper] {
+    /* Override the global * transition rule - exclude transform from transitions */
+    /* Radix positioning transforms are applied via inline styles and should be instant */
+    transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow !important;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1) !important;
+    transition-duration: 250ms !important;
+    /* Explicitly exclude transform from being transitioned */
+    /* Only opacity will animate via keyframes, transforms are instant for positioning */
+  }
+}
+
+@layer utilities {
+  /* Smooth scroll behavior */
+  .smooth-scroll {
+    scroll-behavior: smooth;
+  }
+  
+  /* Enhanced animations */
+  .animate-in {
+    animation: fade-in 0.3s ease-out, slide-up 0.4s ease-out;
+  }
+  
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  
+  @keyframes fade-in-subtle {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  
+  @keyframes slide-up {
+    from {
+      transform: translateY(8px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+  
+  /* Clean dropdown animation - pure opacity fade, no transforms to avoid positioning conflicts */
+  @keyframes dropdown-fade-in {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+  
+  @keyframes dropdown-fade-out {
+    0% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+  
+  @keyframes shimmer {
+    0% {
+      background-position: -1000px 0;
+    }
+    100% {
+      background-position: 1000px 0;
+    }
+  }
+  
+  @keyframes pulse-glow {
+    0%, 100% {
+      box-shadow: 0 0 20px rgba(87, 87, 255, 0.3);
+    }
+    50% {
+      box-shadow: 0 0 30px rgba(87, 87, 255, 0.5);
+    }
+  }
+  
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0px);
+    }
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+  
+  /* Typography utilities */
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  /* Improved focus visible with Flow Purple */
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  }
+  
+  /* Subtle hover effects with Flow Purple glow */
+  .hover-lift {
+    @apply transition-all duration-300 ease-out;
+  }
+  
+  .hover-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px -8px rgba(87, 87, 255, 0.25);
+  }
+  
+  /* Glass morphism effect with Flow Purple tint */
+  .glass {
+    @apply bg-background/80 backdrop-blur-md border border-border/50;
+  }
+  
+  .glass-purple {
+    @apply bg-background/90 backdrop-blur-xl border border-primary/20;
+    box-shadow: 0 8px 32px rgba(87, 87, 255, 0.1);
+  }
+  
+  /* Multi-layer shadow system */
+  .shadow-refined {
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  }
+  
+  .shadow-refined-lg {
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  }
+  
+  .shadow-purple {
+    box-shadow: 0 4px 14px 0 rgba(87, 87, 255, 0.15);
+  }
+  
+  .shadow-purple-lg {
+    box-shadow: 0 10px 30px 0 rgba(87, 87, 255, 0.2), 0 4px 12px 0 rgba(87, 87, 255, 0.1);
+  }
+  
+  .shadow-purple-glow {
+    box-shadow: 0 0 20px rgba(87, 87, 255, 0.3), 0 4px 14px rgba(87, 87, 255, 0.15);
+  }
+  
+  /* Gradient utilities */
+  .gradient-purple {
+    background: linear-gradient(135deg, hsl(240, 100%, 67%) 0%, hsl(240, 100%, 60%) 100%);
+  }
+  
+  .gradient-purple-subtle {
+    background: linear-gradient(135deg, hsl(234, 100%, 74%) 0%, hsl(234, 100%, 78%) 100%);
+  }
+  
+  .gradient-purple-dark {
+    background: linear-gradient(135deg, hsl(260, 100%, 30%) 0%, hsl(260, 100%, 40%) 100%);
+  }
+  
+  /* Flow Purple glow effects */
+  .glow-purple {
+    box-shadow: 0 0 20px rgba(87, 87, 255, 0.4);
+  }
+  
+  .glow-purple-lg {
+    box-shadow: 0 0 40px rgba(87, 87, 255, 0.3);
+  }
+  
+  /* Animation utilities */
+  .animate-shimmer {
+    animation: shimmer 2s infinite linear;
+    background: linear-gradient(
+      to right,
+      transparent 0%,
+      rgba(87, 87, 255, 0.1) 50%,
+      transparent 100%
+    );
+    background-size: 1000px 100%;
+  }
+  
+  .animate-pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+  
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+  
+  /* 8px grid system spacing */
+  .space-grid {
+    gap: 0.5rem; /* 8px */
+  }
+  
+  .space-grid-lg {
+    gap: 1rem; /* 16px */
+  }
+  
+  .space-grid-xl {
+    gap: 1.5rem; /* 24px */
+  }
+}
+

@@ -1,0 +1,443 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  A_R
+  DATA_TEAM
+  PLATFORM_YOUTUBE
+  PLATFORM_FLOW
+  PLATFORM_RINGTUNES
+  PLATFORM_INTERNATIONAL_STREAMING
+  PLATFORM_FACEBOOK
+  PLATFORM_TIKTOK
+  CLIENT
+}
+
+enum ReleaseType {
+  SINGLE
+  ALBUM
+}
+
+enum CopyrightStatus {
+  ORIGINAL
+  COVER
+  INTERNATIONAL
+}
+
+enum VideoType {
+  NONE
+  MUSIC_VIDEO
+  LYRICS_VIDEO
+}
+
+enum PlatformRequestStatus {
+  PENDING
+  REJECTED
+  UPLOADED
+  APPROVED // DEPRECATED: Use UPLOADED instead. Kept for backward compatibility during migration.
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  ON_LEAVE
+  PROBATION
+  SUSPENDED
+  RESIGNED
+  TERMINATED
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String?
+  name          String?
+  image         String?
+  role          UserRole @default(CLIENT)
+  googleId      String?  @unique
+  preferences   Json?    // Store user preferences like column visibility
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  employee      Employee?
+  artist        Artist?
+  auditLogs     AuditLog[]
+  comments      Comment[]
+  platformDecisions PlatformDecision[]
+  importSessions ImportSession[]
+}
+
+model Department {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([name])
+}
+
+model Employee {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  employeeId    String   @unique
+  team          String?
+  department    String?
+  jobTitle      String?
+  location      String?
+  reportingToId String?
+  photo         String?
+  bio           String?
+  hireDate      DateTime?
+  status        EmployeeStatus @default(ACTIVE)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reportingTo   Employee? @relation("EmployeeHierarchy", fields: [reportingToId], references: [id])
+  reports       Employee[] @relation("EmployeeHierarchy")
+  assignedReleases Release[] @relation("AssignedA_R") // DEPRECATED: Use assignedReleaseA_Rs instead
+  assignedReleaseA_Rs ReleaseA_R[] // New: Multiple A&R assignments
+
+  // Indexes for org chart queries
+  @@index([team])
+  @@index([department])
+  @@index([reportingToId])
+  @@index([status])
+  // Composite indexes for common filter combinations
+  @@index([status, team])
+  @@index([status, department])
+  @@index([status, userId])
+}
+
+model Artist {
+  id            String   @id @default(cuid())
+  userId        String?  @unique
+  name          String
+  legalName     String?
+  photo         String?
+  contactEmail  String?
+  contactPhone  String?
+  internalNotes String?  @db.Text
+  history       String?  @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  releases      Release[]
+  releaseArtists ReleaseArtist[]
+  trackArtists  TrackArtist[]
+
+  // Indexes for performance with large datasets
+  @@index([name])
+}
+
+model Release {
+  id                  String       @id @default(cuid())
+  submissionId        String?      @unique // Stable ID from CSV for upsert
+  type                ReleaseType
+  title               String
+  artistId             String
+  artistsChosenDate    DateTime?
+  legacyReleaseDate   DateTime?
+  assignedA_RId       String?      // DEPRECATED: Use assignedA_Rs relation instead. Kept for backward compatibility.
+  copyrightStatus     CopyrightStatus?
+  videoType           VideoType    @default(NONE)
+  paymentRemarks      String?      @db.Text
+  notes               String?      @db.Text
+  rawRow              Json?        // Store raw CSV row data for audit/debug
+  submittedAt         DateTime     @default(now())
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  // Relations
+  artist              Artist       @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  assignedA_R         Employee?    @relation("AssignedA_R", fields: [assignedA_RId], references: [id], onDelete: SetNull) // DEPRECATED
+  assignedA_Rs        ReleaseA_R[] // New: Multiple A&R assignments
+  tracks              Track[]
+  platformRequests    PlatformRequest[]
+  comments            Comment[]
+  auditLogs           AuditLog[]
+  importAttachments   ImportAttachment[]
+  releaseArtists      ReleaseArtist[]
+
+  // Indexes for performance with large datasets
+  @@index([artistId])
+  @@index([type])
+  @@index([assignedA_RId])
+  @@index([artistsChosenDate])
+  @@index([legacyReleaseDate])
+  @@index([createdAt])
+  @@index([submittedAt])
+  @@index([title]) // For search performance
+  @@index([submissionId]) // For CSV import upserts
+}
+
+model Track {
+  id              String   @id @default(cuid())
+  releaseId       String
+  name            String
+  performer       String?
+  composer        String?
+  band            String?
+  musicProducer   String?
+  studio          String?
+  recordLabel     String?
+  genre           String?
+  trackNumber     Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  release         Release  @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  platformRequests PlatformRequest[]
+  trackArtists    TrackArtist[]
+
+  // Indexes for performance with large datasets
+  @@index([releaseId])
+  @@index([performer])
+  @@index([composer])
+  @@index([band])
+  @@index([musicProducer])
+  @@index([studio])
+  @@index([recordLabel])
+  @@index([genre])
+}
+
+model PlatformRequest {
+  id              String                @id @default(cuid())
+  releaseId       String?
+  trackId         String?
+  platform        String // "youtube", "flow", "ringtunes", "international_streaming", "facebook", "tiktok"
+  requested       Boolean               @default(false)
+  status          PlatformRequestStatus @default(PENDING)
+  channelName     String?
+  channelId       String?
+  uploadLink      String?
+  uploadedAt      DateTime?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  // Relations
+  release         Release?              @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  track           Track?                @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  channel         PlatformChannel?      @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  decisions       PlatformDecision[]
+
+  // Indexes for performance
+  @@index([releaseId])
+  @@index([trackId])
+  @@index([platform])
+  @@index([status])
+  @@index([createdAt])
+  // Composite indexes for analytics queries
+  @@index([platform, status])
+  @@index([platform, createdAt])
+  @@index([status, createdAt])
+  @@index([createdAt, status, platform])
+}
+
+model PlatformDecision {
+  id                String   @id @default(cuid())
+  platformRequestId String
+  userId            String
+  status            PlatformRequestStatus
+  notes             String?  @db.Text
+  createdAt         DateTime @default(now())
+
+  // Relations
+  platformRequest   PlatformRequest @relation(fields: [platformRequestId], references: [id], onDelete: Cascade)
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String
+  releaseId   String?
+  entityType  String   // "release", "track", "platform_request", etc.
+  entityId    String
+  action      String   // "create", "update", "delete"
+  fieldName   String?
+  oldValue    String?  @db.Text
+  newValue    String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  // Relations
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  release     Release? @relation(fields: [releaseId], references: [id], onDelete: SetNull)
+}
+
+model Comment {
+  id          String   @id @default(cuid())
+  userId      String
+  releaseId   String
+  trackId     String?
+  parentId    String?
+  content     String   @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  release     Release  @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  parent      Comment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies     Comment[] @relation("CommentReplies")
+}
+
+model ImportAttachment {
+  id          String   @id @default(cuid())
+  releaseId   String
+  filename    String
+  rawContent  String   @db.Text
+  importedAt  DateTime @default(now())
+
+  // Relations
+  release     Release  @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+}
+
+model FieldPermission {
+  id              String   @id @default(cuid())
+  fieldName       String
+  entityType      String   // "release", "track", "platform_request"
+  role            UserRole
+  canView         Boolean  @default(true)
+  canEdit         Boolean  @default(false)
+  isRequired      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([fieldName, entityType, role])
+  @@index([entityType, role])
+}
+
+model SavedView {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  filters     Json     // Store filter configuration as JSON
+  columns     Json     // Store column visibility as JSON
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model PlatformChannel {
+  id          String   @id @default(cuid())
+  platform    String   // "youtube", "facebook", etc.
+  name        String
+  channelId   String?  // YouTube channel ID, Facebook page ID, etc.
+  description String?  @db.Text
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  platformRequests PlatformRequest[]
+
+  @@index([platform, active])
+  @@unique([platform, name]) // Ensure unique channel names per platform
+}
+
+model ReleaseArtist {
+  id        String   @id @default(cuid())
+  releaseId String
+  artistId  String
+  isPrimary Boolean  @default(false) // Mark primary artist
+  createdAt DateTime @default(now())
+
+  release   Release  @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  artist    Artist   @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  @@unique([releaseId, artistId])
+  @@index([releaseId])
+  @@index([artistId])
+}
+
+model TrackArtist {
+  id        String   @id @default(cuid())
+  trackId   String
+  artistId  String
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  track     Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  artist    Artist   @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  @@unique([trackId, artistId])
+  @@index([trackId])
+  @@index([artistId])
+}
+
+model ReleaseA_R {
+  id          String   @id @default(cuid())
+  releaseId   String
+  employeeId  String
+  isPrimary   Boolean  @default(false) // Unused: Simple multi-select, no primary/secondary logic
+  assignedAt  DateTime @default(now())
+  assignedBy  String?  // User ID who assigned this A&R
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  release     Release  @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([releaseId, employeeId]) // Prevent duplicate assignments
+  @@index([releaseId])
+  @@index([employeeId])
+  @@index([isPrimary])
+  @@index([releaseId, isPrimary]) // Composite index (kept for potential future use)
+}
+
+model ImportSession {
+  id            String   @id @default(cuid())
+  userId        String
+  fileHash      String   // SHA-256 hash of file content
+  fileName      String
+  totalRows     Int
+  rowsProcessed Int      @default(0)
+  mappingConfig Json
+  status        String   // 'in_progress', 'completed', 'failed', 'cancelled'
+  startedAt     DateTime @default(now())
+  completedAt   DateTime?
+  error         String?
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, fileHash])
+  @@index([status])
+  @@index([fileHash])
+}
+
+model FormField {
+  id            String   @id @default(cuid())
+  name          String   @unique
+  label         String
+  labelMy       String?
+  placeholder   String?
+  placeholderMy String?
+  type          String
+  required      Boolean  @default(false)
+  section       String
+  order         Int
+  options       Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([section, order])
+  @@index([name])
+}
