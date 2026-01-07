@@ -29,7 +29,7 @@ import {
 } from '@/lib/csv-import-session'
 
 // Process a single row
-async function processRow(
+export async function processRow(
   row: ParsedRow,
   rowIndex: number,
   mappings: MappingConfig['columns'],
