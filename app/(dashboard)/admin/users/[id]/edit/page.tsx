@@ -29,7 +29,14 @@ export default function EditUserPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    email: string
+    name: string
+    password: string
+    role: UserRole
+    employeeId: string
+    team: string
+  }>({
     email: '',
     name: '',
     password: '',
@@ -148,12 +155,7 @@ export default function EditUserPage() {
               <select
                 id="role"
                 value={formData.role}
-                onChange={(e) => {
-                  const roleValue = e.target.value as UserRole
-                  if (Object.values(UserRole).includes(roleValue)) {
-                    setFormData({ ...formData, role: roleValue })
-                  }
-                }}
+                onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 required
                 disabled={saving}
