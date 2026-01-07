@@ -68,11 +68,43 @@ export async function withRetry<T>(
   throw lastError || new Error('Database operation failed after retries')
 }
 
-// Wrapper for Prisma client with retry logic
-// Only initialize if DATABASE_URL is available (not during build)
-export const prisma = globalForPrisma.prisma ?? (
-  process.env.DATABASE_URL ? createPrismaClient() : ({} as PrismaClient)
-)
+// Lazy Prisma client getter - only initializes when actually accessed
+// This prevents initialization during build when DATABASE_URL is not available
+function getPrismaClient(): PrismaClient {
+  if (globalForPrisma.prisma) {
+    return globalForPrisma.prisma
+  }
+  
+  if (!process.env.DATABASE_URL) {
+    // During build, return a no-op client that throws on access
+    return new Proxy({} as PrismaClient, {
+      get(_target, prop) {
+        // Allow $disconnect to be called without error
+        if (prop === '$disconnect') {
+          return async () => {}
+        }
+        throw new Error(`Prisma client accessed during build. Property: ${String(prop)}. This route should use 'export const dynamic = "force-dynamic"'`)
+      }
+    })
+  }
+  
+  const client = createPrismaClient()
+  globalForPrisma.prisma = client
+  return client
+}
+
+// Export as a getter property to ensure lazy initialization
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, prop) {
+    const client = getPrismaClient()
+    const value = (client as any)[prop]
+    // If it's a function, bind it to the client
+    if (typeof value === 'function') {
+      return value.bind(client)
+    }
+    return value
+  }
+})
 
 // Health check function
 export async function checkDatabaseConnection(): Promise<boolean> {
