@@ -6,6 +6,9 @@ import { UserRole } from '@prisma/client'
 import { deleteFile } from '@/lib/storage'
 import { createAuditLog } from '@/lib/utils'
 
+// Force dynamic rendering - don't execute during build
+export const dynamic = 'force-dynamic'
+
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }

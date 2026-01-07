@@ -6,6 +6,14 @@ const globalForPrisma = globalThis as unknown as {
 
 // Connection pool configuration with retry logic
 const createPrismaClient = () => {
+  if (!process.env.DATABASE_URL) {
+    // During build time, return a mock client that throws helpful errors
+    return new Proxy({} as PrismaClient, {
+      get() {
+        throw new Error('Prisma client not available during build. This is expected.')
+      }
+    })
+  }
   return new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
     datasources: {
@@ -61,7 +69,10 @@ export async function withRetry<T>(
 }
 
 // Wrapper for Prisma client with retry logic
-export const prisma = globalForPrisma.prisma ?? createPrismaClient()
+// Only initialize if DATABASE_URL is available (not during build)
+export const prisma = globalForPrisma.prisma ?? (
+  process.env.DATABASE_URL ? createPrismaClient() : ({} as PrismaClient)
+)
 
 // Health check function
 export async function checkDatabaseConnection(): Promise<boolean> {

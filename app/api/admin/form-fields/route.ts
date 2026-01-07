@@ -4,6 +4,9 @@ import { authOptions } from '@/lib/auth'
 import { UserRole } from '@prisma/client'
 import { prisma } from '@/lib/db'
 
+// Force dynamic rendering - don't execute during build
+export const dynamic = 'force-dynamic'
+
 // Default form fields structure with Myanmar translations
 const DEFAULT_FORM_FIELDS = [
   { 

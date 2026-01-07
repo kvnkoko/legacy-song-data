@@ -5,6 +5,9 @@ import { prisma } from '@/lib/db'
 import { UserRole } from '@prisma/client'
 import { cancelImportSession } from '@/lib/csv-import-session'
 
+// Force dynamic rendering - don't execute during build
+export const dynamic = 'force-dynamic'
+
 /**
  * Cancel All Active Imports API Endpoint
  * Immediately stops all in-progress imports
