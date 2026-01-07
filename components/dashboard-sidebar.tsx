@@ -80,7 +80,7 @@ export function DashboardSidebar({ userRole, userEmail }: SidebarProps) {
       {/* Desktop Sidebar */}
       <aside className="hidden lg:flex w-64 border-r border-border/50 bg-card/80 backdrop-blur-xl supports-[backdrop-filter]:bg-card/80 flex-col h-screen sticky top-0 shadow-purple">
         <div className="p-6 border-b border-border/50 bg-gradient-to-br from-primary/5 to-transparent">
-          <div className="flex items-center justify-between mb-3 gap-3">
+          <div className="flex items-center justify-between mb-4 gap-3">
             <Link 
               href="/dashboard" 
               className="flex items-center group transition-opacity hover:opacity-80 flex-shrink-0 min-w-0"
@@ -89,14 +89,14 @@ export function DashboardSidebar({ userRole, userEmail }: SidebarProps) {
                 <Image
                   src={logoSrc}
                   alt="Legacy"
-                  width={180}
-                  height={48}
-                  className="h-10 w-auto max-w-[180px] object-contain object-left transition-all duration-300"
+                  width={220}
+                  height={60}
+                  className="h-14 w-auto max-w-[220px] object-contain object-left transition-all duration-300"
                   priority
                   quality={95}
                 />
               ) : (
-                <div className="h-10 w-[140px] bg-muted animate-pulse rounded" />
+                <div className="h-14 w-[180px] bg-muted animate-pulse rounded" />
               )}
             </Link>
             <ThemeToggle />
