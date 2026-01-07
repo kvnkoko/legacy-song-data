@@ -6,6 +6,9 @@ import { ReleaseType } from '@prisma/client'
 import { createAuditLog } from '@/lib/utils'
 import { parseArtists, findOrCreateArtists } from '@/lib/csv-importer'
 
+// Force dynamic rendering - don't execute during build
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: NextRequest) {
   try {
     // Allow anonymous submissions - no auth required
