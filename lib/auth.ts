@@ -14,6 +14,9 @@ export const authOptions: NextAuthOptions = {
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/auth.ts:authorize',message:'Authorize called',data:{hasEmail:!!credentials?.email,hasDbUrl:!!process.env.DATABASE_URL},timestamp:Date.now(),sessionId:'debug-session',runId:'runtime',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
         if (!credentials?.email || !credentials?.password) {
           console.log('Auth: Missing credentials')
           return null
@@ -23,35 +26,49 @@ export const authOptions: NextAuthOptions = {
         const email = credentials.email.trim().toLowerCase()
         const password = credentials.password
 
-        const user = await prisma.user.findUnique({
-          where: { email },
-        })
+        try {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/auth.ts:authorize-before-prisma',message:'Before Prisma query',data:{email},timestamp:Date.now(),sessionId:'debug-session',runId:'runtime',hypothesisId:'C'})}).catch(()=>{});
+          // #endregion
+          const user = await prisma.user.findUnique({
+            where: { email },
+          })
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/auth.ts:authorize-after-prisma',message:'After Prisma query',data:{found:!!user},timestamp:Date.now(),sessionId:'debug-session',runId:'runtime',hypothesisId:'C'})}).catch(()=>{});
+          // #endregion
 
-        if (!user) {
-          console.log(`Auth: User not found: ${email}`)
-          return null
-        }
+          if (!user) {
+            console.log(`Auth: User not found: ${email}`)
+            return null
+          }
 
-        if (!user.passwordHash) {
-          console.log(`Auth: User has no password hash: ${email}`)
-          return null
-        }
+          if (!user.passwordHash) {
+            console.log(`Auth: User has no password hash: ${email}`)
+            return null
+          }
 
-        const isValid = await bcrypt.compare(password, user.passwordHash)
+          const isValid = await bcrypt.compare(password, user.passwordHash)
 
-        if (!isValid) {
-          console.log(`Auth: Invalid password for: ${email}`)
-          return null
-        }
+          if (!isValid) {
+            console.log(`Auth: Invalid password for: ${email}`)
+            return null
+          }
 
-        console.log(`Auth: Success for: ${email}`)
+          console.log(`Auth: Success for: ${email}`)
 
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          image: user.image,
-          role: user.role,
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            image: user.image,
+            role: user.role,
+          }
+        } catch (error: any) {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/auth.ts:authorize-error',message:'Error in authorize',data:{error:error?.message,stack:error?.stack},timestamp:Date.now(),sessionId:'debug-session',runId:'runtime',hypothesisId:'C'})}).catch(()=>{});
+          // #endregion
+          console.error('Auth error:', error)
+          throw error
         }
       },
     }),
@@ -96,6 +113,9 @@ export const authOptions: NextAuthOptions = {
       return token
     },
     async session({ session, token }) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/auth.ts:session-callback',message:'Session callback called',data:{hasToken:!!token,hasSession:!!session},timestamp:Date.now(),sessionId:'debug-session',runId:'runtime',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
       if (session.user) {
         session.user.id = token.id as string
         session.user.role = token.role as UserRole

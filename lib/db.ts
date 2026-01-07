@@ -76,33 +76,54 @@ function getPrismaClient(): PrismaClient {
   }
   
   if (!process.env.DATABASE_URL) {
-    // During build, return a no-op client that throws on access
+    // During build or if DATABASE_URL is missing, return a no-op client
     return new Proxy({} as PrismaClient, {
       get(_target, prop) {
-        // Allow $disconnect to be called without error
-        if (prop === '$disconnect') {
+        // Allow $disconnect and $connect to be called without error
+        if (prop === '$disconnect' || prop === '$connect') {
           return async () => {}
+        }
+        // During build, throw helpful error
+        if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL) {
+          throw new Error(`Prisma client accessed but DATABASE_URL is not set. Property: ${String(prop)}`)
         }
         throw new Error(`Prisma client accessed during build. Property: ${String(prop)}. This route should use 'export const dynamic = "force-dynamic"'`)
       }
     })
   }
   
-  const client = createPrismaClient()
-  globalForPrisma.prisma = client
-  return client
+  try {
+    const client = createPrismaClient()
+    globalForPrisma.prisma = client
+    return client
+  } catch (error: any) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/db.ts:getPrismaClient',message:'Failed to create Prisma client',data:{error:error?.message,hasDbUrl:!!process.env.DATABASE_URL},timestamp:Date.now(),sessionId:'debug-session',runId:'runtime',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
+    throw error
+  }
 }
 
 // Export as a getter property to ensure lazy initialization
 export const prisma = new Proxy({} as PrismaClient, {
   get(_target, prop) {
-    const client = getPrismaClient()
-    const value = (client as any)[prop]
-    // If it's a function, bind it to the client
-    if (typeof value === 'function') {
-      return value.bind(client)
+    try {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/db.ts:prisma-proxy',message:'Prisma property accessed',data:{prop:String(prop),hasDbUrl:!!process.env.DATABASE_URL,nodeEnv:process.env.NODE_ENV},timestamp:Date.now(),sessionId:'debug-session',runId:'runtime',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      const client = getPrismaClient()
+      const value = (client as any)[prop]
+      // If it's a function, bind it to the client
+      if (typeof value === 'function') {
+        return value.bind(client)
+      }
+      return value
+    } catch (error: any) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/db.ts:prisma-proxy-error',message:'Error accessing Prisma property',data:{prop:String(prop),error:error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'runtime',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      throw error
     }
-    return value
   }
 })
 
