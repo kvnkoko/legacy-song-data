@@ -5,7 +5,7 @@ import { prisma } from '@/lib/db'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Database, Users, Music, Calendar, Youtube, Facebook, Music2, Globe, Radio } from 'lucide-react'
+import { Database, Users, Music, Calendar, Youtube, Facebook, Music2, Globe, Radio, Upload } from 'lucide-react'
 import { ReloadButton } from '@/components/reload-button'
 import { DashboardSections } from '@/components/dashboard-sections'
 import { DashboardAutoRefresh } from '@/components/dashboard-auto-refresh'
@@ -264,6 +264,12 @@ export default async function DashboardPage() {
                 <Button variant="outline" size="sm" className="w-full justify-start">
                   <Users className="w-4 h-4 mr-2" />
                   A&R Releases
+                </Button>
+              </Link>
+              <Link href="/submit">
+                <Button variant="outline" size="sm" className="w-full justify-start">
+                  <Upload className="w-4 h-4 mr-2" />
+                  Submit Form
                 </Button>
               </Link>
             </div>
