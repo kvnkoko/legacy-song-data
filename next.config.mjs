@@ -18,6 +18,14 @@ const nextConfig = {
       bodySizeLimit: '2mb',
     },
   },
+  // Don't fail build on ESLint errors (warnings are okay)
+  eslint: {
+    ignoreDuringBuilds: false,
+  },
+  // Don't fail build on TypeScript errors (if any)
+  typescript: {
+    ignoreBuildErrors: false,
+  },
 }
 
 export default nextConfig
