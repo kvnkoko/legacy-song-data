@@ -26,7 +26,14 @@ export default function NewUserPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    email: string
+    name: string
+    password: string
+    role: UserRole
+    employeeId: string
+    team: string
+  }>({
     email: '',
     name: '',
     password: '',
