@@ -3,16 +3,11 @@ import { authOptions } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/db'
 import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { 
   User, 
-  Search,
   AlertTriangle
 } from 'lucide-react'
-import Link from 'next/link'
-import { formatDate } from '@/lib/utils'
 import { UserRole } from '@prisma/client'
 import { ArtistEditButton } from '@/components/artist-edit-button'
 import { ArtistDeleteButton } from '@/components/artist-delete-button'
@@ -22,13 +17,59 @@ import { AnimatedCard } from '@/components/animated-card'
 import { ArtistFilters } from '@/components/artist-filters'
 import { ArtistMergeButton } from '@/components/artist-merge-button'
 import { FindDuplicatesButton } from '@/components/find-duplicates-button'
+import { Pagination } from '@/components/ui/pagination'
+import { ArtistsPageClient } from '@/components/artists-page-client'
 
 export const dynamic = 'force-dynamic'
+
+// Helper function to get the first letter of a name (for alphabet filtering)
+function getFirstLetter(name: string): string {
+  if (!name || name.length === 0) return '#'
+  const firstChar = name.charAt(0).toUpperCase()
+  return /[A-Z]/.test(firstChar) ? firstChar : '#'
+}
+
+// Calculate letter counts for all artists (optimized query)
+async function getLetterCounts(searchFilter?: any): Promise<Record<string, number>> {
+  const artists = await prisma.artist.findMany({
+    where: searchFilter || {},
+    select: {
+      name: true,
+    },
+  })
+
+  const counts: Record<string, number> = {}
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
+  
+  // Initialize all letters
+  alphabet.forEach(letter => {
+    counts[letter] = 0
+  })
+  counts['#'] = 0
+
+  // Count artists by first letter
+  artists.forEach(artist => {
+    const letter = getFirstLetter(artist.name)
+    counts[letter] = (counts[letter] || 0) + 1
+  })
+
+  return counts
+}
 
 export default async function ArtistsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ search?: string }> | { search?: string }
+  searchParams: Promise<{ 
+    search?: string
+    letter?: string
+    page?: string
+    pageSize?: string
+  }> | { 
+    search?: string
+    letter?: string
+    page?: string
+    pageSize?: string
+  }
 }) {
   const session = await getServerSession(authOptions)
   
@@ -38,24 +79,73 @@ export default async function ArtistsPage({
 
   try {
     const role = session.user.role as UserRole
-    // Use string literals instead of UserRole enum to avoid RSC serialization issues
     const canEdit = role === 'ADMIN' || role === 'MANAGER'
 
     // Handle both Promise and direct object for searchParams (Next.js 14 vs 15)
     const resolvedSearchParams = searchParams instanceof Promise ? await searchParams : searchParams
     const search = resolvedSearchParams.search || ''
+    const letter = resolvedSearchParams.letter
+    const page = parseInt(resolvedSearchParams.page || '1')
+    const pageSize = parseInt(resolvedSearchParams.pageSize || '24') // Default to 24 for grid layout
 
-    const where = search
-      ? {
-          OR: [
-            { name: { contains: search, mode: 'insensitive' as const } },
-            { legalName: { contains: search, mode: 'insensitive' as const } },
-            { contactEmail: { contains: search, mode: 'insensitive' as const } },
-          ],
-        }
-      : {}
+    // Build where clause
+    const where: any = {}
 
-    const artists = await prisma.artist.findMany({
+    // Search filter
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' as const } },
+        { legalName: { contains: search, mode: 'insensitive' as const } },
+        { contactEmail: { contains: search, mode: 'insensitive' as const } },
+      ]
+    }
+
+    // Alphabet filter
+    if (letter && letter !== '#') {
+      // Filter by first letter (case-insensitive)
+      if (where.OR) {
+        // If we have search OR conditions, combine with AND
+        where.AND = [
+          { OR: where.OR },
+          { name: { startsWith: letter, mode: 'insensitive' as const } }
+        ]
+        delete where.OR
+      } else {
+        where.name = { startsWith: letter, mode: 'insensitive' as const }
+      }
+    } else if (letter === '#') {
+      // Filter for names that don't start with a letter
+      // Build NOT conditions for all letters
+      const letterConditions = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(l => ({
+        name: { startsWith: l, mode: 'insensitive' as const }
+      }))
+      
+      if (where.OR) {
+        where.AND = [
+          { OR: where.OR },
+          { NOT: { OR: letterConditions } }
+        ]
+        delete where.OR
+      } else {
+        where.NOT = { OR: letterConditions }
+      }
+    }
+
+    // Get total count for pagination
+    const totalArtists = await prisma.artist.count({ where })
+
+    // Calculate pagination
+    const totalPages = Math.max(1, Math.ceil(totalArtists / pageSize))
+    const currentPage = Math.min(Math.max(1, page), totalPages)
+    const skip = (currentPage - 1) * pageSize
+
+    // Get letter counts (for alphabet navigation)
+    // If search is active, show counts based on search results
+    // Otherwise, show counts for all artists
+    const letterCounts = await getLetterCounts(search ? where : {})
+
+    // Fetch artists with pagination
+    let artists = await prisma.artist.findMany({
       where,
       include: {
         releases: {
@@ -101,7 +191,8 @@ export default async function ArtistsPage({
         },
       },
       orderBy: { name: 'asc' },
-      take: 1000,
+      skip,
+      take: pageSize,
     })
 
     // Calculate accurate stats matching the profile page logic exactly
@@ -183,10 +274,6 @@ export default async function ArtistsPage({
         return trackReleaseId && !releaseIdsArray.includes(trackReleaseId)
       }).length
       
-      // Note: We're not including string field matches (performer, composer, etc.) here for performance
-      // The profile page includes these, but for the list view we prioritize speed
-      // The core counts (releases + tracks from relationships) are accurate
-      
       // Total tracks = tracks from releases + tracks from relationship (not in releases)
       const totalTracks = tracksFromReleases + tracksNotInReleases
       
@@ -209,8 +296,7 @@ export default async function ArtistsPage({
       })
     }
 
-    // Get total counts
-    const totalArtists = await prisma.artist.count()
+    // Get total counts for display
     const totalReleases = await prisma.release.count()
     const totalTracks = await prisma.track.count()
 
@@ -222,128 +308,149 @@ export default async function ArtistsPage({
     const statsObject = Object.fromEntries(statsMap)
 
     return (
-    <div className="p-6 md:p-8 space-y-8 animate-in">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl md:text-4xl font-bold tracking-tight flex items-center gap-3 bg-gradient-to-r from-foreground via-foreground to-primary bg-clip-text text-transparent">
-            <User className="w-8 h-8 text-primary" />
-            Artists
-          </h1>
-          <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
-            {search
-              ? `${artists.length} artist${artists.length !== 1 ? 's' : ''} found`
-              : `${totalArtists} total artist${totalArtists !== 1 ? 's' : ''}`}
-            {!search && (
-              <span className="ml-2 text-xs">
-                ({totalReleases} releases, {totalTracks} tracks)
-              </span>
-            )}
-          </p>
+      <div className="p-4 sm:p-6 md:p-8 space-y-6 sm:space-y-8 w-full max-w-full overflow-x-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight flex flex-wrap items-center gap-2 sm:gap-3 bg-gradient-to-r from-foreground via-foreground to-primary bg-clip-text text-transparent break-words">
+              <User className="w-6 h-6 sm:w-8 sm:h-8 text-primary flex-shrink-0" />
+              <span>Artists</span>
+            </h1>
+            <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
+              {search || letter
+                ? `${totalArtists} artist${totalArtists !== 1 ? 's' : ''} found`
+                : `${totalArtists} total artist${totalArtists !== 1 ? 's' : ''}`}
+              {!search && !letter && (
+                <span className="ml-2 text-xs">
+                  ({totalReleases} releases, {totalTracks} tracks)
+                </span>
+              )}
+            </p>
+          </div>
+          {canEdit && duplicates.length > 0 && (
+            <FindDuplicatesButton duplicates={duplicates} />
+          )}
         </div>
-        {canEdit && duplicates.length > 0 && (
-          <FindDuplicatesButton duplicates={duplicates} />
-        )}
-      </div>
 
-      {/* Search */}
-      <AnimatedCard delay={0.1}>
-        <Card className="bg-gradient-to-br from-card via-card to-primary/5 border-primary/10">
-          <CardContent className="p-4">
-            <ArtistFilters />
-          </CardContent>
-        </Card>
-      </AnimatedCard>
+        {/* Search and Filters */}
+        <AnimatedCard delay={0.1}>
+          <Card className="bg-gradient-to-br from-card via-card to-primary/5 border-primary/10">
+            <CardContent className="p-4 sm:p-6">
+              <ArtistFilters 
+                currentLetter={letter}
+                letterCounts={letterCounts}
+              />
+            </CardContent>
+          </Card>
+        </AnimatedCard>
 
-      {/* Duplicate Detection Info */}
-      {duplicates.length > 0 && (
-        <AnimatedCard delay={0.15}>
-          <div className="bg-yellow-500/10 border-yellow-500/20 border rounded-lg p-4 flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-yellow-600 dark:text-yellow-500 mt-0.5" />
-            <div className="flex-1">
-              <div className="font-medium text-yellow-900 dark:text-yellow-100">
-                Potential Duplicates Detected
-              </div>
-              <div className="text-sm text-yellow-800 dark:text-yellow-200 mt-1">
-                Found {duplicates.length} potential duplicate pair{duplicates.length !== 1 ? 's' : ''}. 
-                Review and merge duplicate artists to keep your database clean.
+        {/* Duplicate Detection Info */}
+        {duplicates.length > 0 && (
+          <AnimatedCard delay={0.15}>
+            <div className="bg-yellow-500/10 border-yellow-500/20 border rounded-lg p-4 flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-yellow-600 dark:text-yellow-500 mt-0.5" />
+              <div className="flex-1">
+                <div className="font-medium text-yellow-900 dark:text-yellow-100">
+                  Potential Duplicates Detected
+                </div>
+                <div className="text-sm text-yellow-800 dark:text-yellow-200 mt-1">
+                  Found {duplicates.length} potential duplicate pair{duplicates.length !== 1 ? 's' : ''}. 
+                  Review and merge duplicate artists to keep your database clean.
+                </div>
               </div>
             </div>
-          </div>
-        </AnimatedCard>
-      )}
+          </AnimatedCard>
+        )}
 
-      {/* Artist Grid */}
-      {artists.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {artists.map((artist, index) => {
-          const stats = statsObject[artist.id] || { releases: 0, tracks: 0, uploaded: 0 }
-          const totalReleases = stats.releases
-          const totalTracks = stats.tracks
-          const uploadedReleases = stats.uploaded
+        {/* Artist Grid */}
+        {artists.length > 0 && (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 w-full">
+              {artists.map((artist, index) => {
+                const stats = statsObject[artist.id] || { releases: 0, tracks: 0, uploaded: 0 }
+                const totalReleases = stats.releases
+                const totalTracks = stats.tracks
+                const uploadedReleases = stats.uploaded
 
-          const allReleaseIds = new Set([
-            ...artist.releases.map(r => r.id),
-            ...artist.releaseArtists.map(ra => ra.releaseId),
-          ])
-          const latestRelease = artist.releases && artist.releases.length > 0 ? artist.releases[0] : null
-          const isDuplicate = duplicateArtistIds.has(artist.id)
+                const latestRelease = artist.releases && artist.releases.length > 0 ? artist.releases[0] : null
+                const isDuplicate = duplicateArtistIds.has(artist.id)
 
-          return (
-            <AnimatedCard key={artist.id} delay={index * 0.03} hover glow>
-              <ProfileCard
-                type="artist"
-                name={artist.name}
-                subtitle={artist.legalName || undefined}
-                photo={artist.photo}
-                stats={[
-                  { label: 'Releases', value: totalReleases, icon: 'Music' },
-                  { label: 'Tracks', value: totalTracks, icon: 'Music' },
-                  { label: 'Uploaded', value: uploadedReleases, icon: 'Upload' },
-                ]}
-                badges={[
-                  ...(latestRelease ? [latestRelease.title] : []),
-                  ...(isDuplicate ? [
-                    <Badge key="duplicate" variant="destructive" className="gap-1">
-                      <AlertTriangle className="w-3 h-3" />
-                      Duplicate
-                    </Badge>
-                  ] : []),
-                ]}
-                href={`/profiles/artist/${artist.id}`}
-                actions={canEdit && (
-                  <div className="flex flex-wrap gap-2 justify-center mt-4">
-                    <ArtistEditButton artistId={artist.id} />
-                    <ArtistMergeButton artist={artist as any} />
-                    <ArtistDeleteButton 
-                      artistId={artist.id} 
-                      artistName={artist.name}
-                      releaseCount={totalReleases}
+                return (
+                  <AnimatedCard key={artist.id} delay={index * 0.03} hover glow>
+                    <ProfileCard
+                      type="artist"
+                      name={artist.name}
+                      subtitle={artist.legalName || undefined}
+                      photo={artist.photo}
+                      stats={[
+                        { label: 'Releases', value: totalReleases, icon: 'Music' },
+                        { label: 'Tracks', value: totalTracks, icon: 'Music' },
+                        { label: 'Uploaded', value: uploadedReleases, icon: 'Upload' },
+                      ]}
+                      badges={[
+                        ...(latestRelease ? [latestRelease.title] : []),
+                        ...(isDuplicate ? [
+                          <Badge key="duplicate" variant="destructive" className="gap-1">
+                            <AlertTriangle className="w-3 h-3" />
+                            Duplicate
+                          </Badge>
+                        ] : []),
+                      ]}
+                      href={`/profiles/artist/${artist.id}`}
+                      actions={canEdit && (
+                        <div className="flex flex-wrap gap-2 justify-center mt-4">
+                          <ArtistEditButton artistId={artist.id} />
+                          <ArtistMergeButton artist={artist as any} />
+                          <ArtistDeleteButton 
+                            artistId={artist.id} 
+                            artistName={artist.name}
+                            releaseCount={totalReleases}
+                          />
+                        </div>
+                      )}
                     />
-                  </div>
-                )}
-              />
-            </AnimatedCard>
-          )
-          })}
-        </div>
-      )}
+                  </AnimatedCard>
+                )
+              })}
+            </div>
 
-      {artists.length === 0 && (
-        <EmptyState
-          icon="User"
-          title="No artists found"
-          description={search ? "Try adjusting your search terms" : "Artists will appear here once they're added to the system"}
-        />
-      )}
-    </div>
-  )
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="mt-8">
+                <ArtistsPageClient
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={totalArtists}
+                  pageSize={pageSize}
+                  searchParams={resolvedSearchParams}
+                />
+              </div>
+            )}
+          </>
+        )}
+
+        {artists.length === 0 && (
+          <EmptyState
+            icon="User"
+            title="No artists found"
+            description={
+              search || letter
+                ? "Try adjusting your search terms or selecting a different letter"
+                : "Artists will appear here once they're added to the system"
+            }
+          />
+        )}
+      </div>
+    )
   } catch (error: any) {
     // NEXT_REDIRECT is a special error thrown by Next.js redirect() - don't catch it
     if (error?.message === 'NEXT_REDIRECT' || error?.digest?.startsWith('NEXT_REDIRECT')) {
       throw error
     }
     
-    console.error('Error loading artists page:', error)
+    // Only log non-critical errors in development
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Error loading artists page:', error)
+    }
     throw error
   }
 }

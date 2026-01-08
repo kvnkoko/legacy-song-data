@@ -112,6 +112,9 @@ const config = {
         'grid-5': '2.5rem',  // 40px
         'grid-6': '3rem',    // 48px
       },
+      gridTemplateColumns: {
+        '13': 'repeat(13, minmax(0, 1fr))',
+      },
       keyframes: {
         "accordion-down": {
           from: { height: "0" },
