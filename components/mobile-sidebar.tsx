@@ -211,6 +211,52 @@ export function MobileSidebar({ userRole, userEmail }: MobileSidebarProps) {
                                   ? '#a3a3a3' 
                                   : '#737373'
                             }}
+                            ref={(iconEl) => {
+                              if (iconEl) {
+                                requestAnimationFrame(() => {
+                                  const iconComputed = window.getComputedStyle(iconEl);
+                                  const iconRect = iconEl.getBoundingClientRect();
+                                  const iconColor = active ? '#5b5bff' : (isDark ? '#a3a3a3' : '#737373');
+                                  
+                                  // Force icon styles
+                                  iconEl.style.setProperty('color', iconColor, 'important');
+                                  iconEl.style.setProperty('opacity', '1', 'important');
+                                  iconEl.style.setProperty('visibility', 'visible', 'important');
+                                  iconEl.style.setProperty('fill', iconColor, 'important');
+                                  iconEl.style.setProperty('stroke', iconColor, 'important');
+                                  
+                                  // #region agent log
+                                  const logData = {
+                                    location:'mobile-sidebar.tsx:202',
+                                    message:'Icon visibility analysis',
+                                    data:{
+                                      label:item.label,
+                                      active,
+                                      isDark,
+                                      targetColor:iconColor,
+                                      computedColor:iconComputed.color,
+                                      computedOpacity:iconComputed.opacity,
+                                      computedVisibility:iconComputed.visibility,
+                                      computedFill:iconComputed.fill,
+                                      computedStroke:iconComputed.stroke,
+                                      width:iconRect.width,
+                                      height:iconRect.height,
+                                      offsetWidth:iconEl.offsetWidth,
+                                      offsetHeight:iconEl.offsetHeight,
+                                      viewBox:iconEl.getAttribute('viewBox'),
+                                      hasChildren:iconEl.children.length > 0
+                                    },
+                                    timestamp:Date.now(),
+                                    sessionId:'debug-session',
+                                    runId:'run7',
+                                    hypothesisId:'J'
+                                  };
+                                  console.log('[DEBUG] Mobile Icon Analysis:', logData);
+                                  fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch(()=>{});
+                                  // #endregion
+                                });
+                              }
+                            }}
                           />
                           {/* Render text directly without span wrapper to avoid CSS inheritance issues */}
                           <span 
@@ -277,38 +323,116 @@ export function MobileSidebar({ userRole, userEmail }: MobileSidebarProps) {
                                   setTimeout(applyStyles, 100);
                                 });
                                 
-                                // Log for debugging
+                                // Log for debugging - comprehensive parent chain analysis
                                 requestAnimationFrame(() => {
                                   const computed = window.getComputedStyle(el);
                                   const rect = el.getBoundingClientRect();
                                   const color = active ? '#5b5bff' : (isDark ? '#fafafa' : '#000000');
+                                  
+                                  // Analyze parent chain
+                                  const parentChain: any[] = [];
+                                  let current: HTMLElement | null = el.parentElement;
+                                  let depth = 0;
+                                  while (current && depth < 10) {
+                                    const parentComputed = window.getComputedStyle(current);
+                                    const parentRect = current.getBoundingClientRect();
+                                    parentChain.push({
+                                      tag: current.tagName,
+                                      className: current.className,
+                                      id: current.id,
+                                      opacity: parentComputed.opacity,
+                                      visibility: parentComputed.visibility,
+                                      display: parentComputed.display,
+                                      overflow: parentComputed.overflow,
+                                      overflowX: parentComputed.overflowX,
+                                      overflowY: parentComputed.overflowY,
+                                      clipPath: parentComputed.clipPath,
+                                      clip: parentComputed.clip,
+                                      transform: parentComputed.transform,
+                                      zIndex: parentComputed.zIndex,
+                                      position: parentComputed.position,
+                                      width: parentRect.width,
+                                      height: parentRect.height,
+                                      top: parentRect.top,
+                                      left: parentRect.left,
+                                      offsetWidth: current.offsetWidth,
+                                      offsetHeight: current.offsetHeight
+                                    });
+                                    current = current.parentElement;
+                                    depth++;
+                                  }
+                                  
+                                  // Check for overlaying elements
+                                  const centerX = rect.left + rect.width / 2;
+                                  const centerY = rect.top + rect.height / 2;
+                                  const overlayElements = document.elementsFromPoint(centerX, centerY);
+                                  const overlays = overlayElements.slice(0, 5).map((overlay, idx) => {
+                                    if (overlay === el) return null;
+                                    const overlayComputed = window.getComputedStyle(overlay as HTMLElement);
+                                    const overlayRect = (overlay as HTMLElement).getBoundingClientRect();
+                                    return {
+                                      index: idx,
+                                      tag: overlay.tagName,
+                                      className: (overlay as HTMLElement).className,
+                                      zIndex: overlayComputed.zIndex,
+                                      position: overlayComputed.position,
+                                      backgroundColor: overlayComputed.backgroundColor,
+                                      opacity: overlayComputed.opacity,
+                                      pointerEvents: overlayComputed.pointerEvents,
+                                      width: overlayRect.width,
+                                      height: overlayRect.height,
+                                      top: overlayRect.top,
+                                      left: overlayRect.left
+                                    };
+                                  }).filter(Boolean);
+                                  
+                                  // Check font loading
+                                  const fontCheck = document.fonts.check('16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif');
+                                  
                                   // #region agent log
                                   const logData = {
-                                    location:'mobile-sidebar.tsx:178',
-                                    message:'Direct text rendering analysis',
+                                    location:'mobile-sidebar.tsx:216',
+                                    message:'Comprehensive parent chain and overlay analysis',
                                     data:{
                                       label:item.label,
                                       active,
                                       isDark,
                                       targetColor:color,
-                                      computedColor:computed.color,
-                                      computedOpacity:computed.opacity,
-                                      computedVisibility:computed.visibility,
-                                      width:rect.width,
-                                      height:rect.height,
-                                      offsetWidth:el.offsetWidth,
-                                      offsetHeight:el.offsetHeight,
-                                      hasText:!!el.textContent,
-                                      textLength:el.textContent?.length || 0,
-                                      fontSize:computed.fontSize,
-                                      fontFamily:computed.fontFamily
+                                      element: {
+                                        computedColor:computed.color,
+                                        computedOpacity:computed.opacity,
+                                        computedVisibility:computed.visibility,
+                                        computedDisplay:computed.display,
+                                        computedOverflow:computed.overflow,
+                                        computedZIndex:computed.zIndex,
+                                        computedPosition:computed.position,
+                                        computedTransform:computed.transform,
+                                        computedClipPath:computed.clipPath,
+                                        width:rect.width,
+                                        height:rect.height,
+                                        top:rect.top,
+                                        left:rect.left,
+                                        offsetWidth:el.offsetWidth,
+                                        offsetHeight:el.offsetHeight,
+                                        hasText:!!el.textContent,
+                                        textLength:el.textContent?.length || 0,
+                                        fontSize:computed.fontSize,
+                                        fontFamily:computed.fontFamily,
+                                        fontLoaded: fontCheck
+                                      },
+                                      parentChain,
+                                      overlays,
+                                      viewport: {
+                                        width: window.innerWidth,
+                                        height: window.innerHeight
+                                      }
                                     },
                                     timestamp:Date.now(),
                                     sessionId:'debug-session',
-                                    runId:'run6',
-                                    hypothesisId:'H'
+                                    runId:'run7',
+                                    hypothesisId:'I'
                                   };
-                                  console.log('[DEBUG] Direct Mobile Text Analysis:', logData);
+                                  console.log('[DEBUG] Mobile Parent Chain & Overlay Analysis:', logData);
                                   fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch(()=>{});
                                   // #endregion
                                 });
