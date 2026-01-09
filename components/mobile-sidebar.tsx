@@ -237,7 +237,13 @@ export function MobileSidebar({ userRole, userEmail }: MobileSidebarProps) {
                               clipPath: 'none',
                               transform: 'none',
                               filter: 'none',
-                              mixBlendMode: 'normal'
+                              mixBlendMode: 'normal',
+                              // Use system font as fallback in case custom font fails
+                              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                              // Ensure text is actually rendered
+                              whiteSpace: 'nowrap',
+                              textIndent: 0,
+                              letterSpacing: 'normal'
                             }}
                             ref={(el) => {
                               if (el) {
@@ -270,7 +276,10 @@ export function MobileSidebar({ userRole, userEmail }: MobileSidebarProps) {
                                     mix-blend-mode: normal !important;
                                     overflow: visible !important;
                                     text-overflow: clip !important;
-                                    white-space: normal !important;
+                                    white-space: nowrap !important;
+                                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+                                    text-indent: 0 !important;
+                                    letter-spacing: normal !important;
                                   `;
                                   
                                   // Also set via setProperty as backup
