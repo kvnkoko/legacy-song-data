@@ -164,12 +164,33 @@ export function MobileSidebar({ userRole, userEmail }: MobileSidebarProps) {
                         <Link 
                           href={item.href} 
                           onClick={() => setIsOpen(false)}
-                          className={cn(
-                            "w-full justify-start gap-3 h-11 transition-all duration-300 relative group flex items-center px-3 rounded-md",
-                            active 
-                              ? "bg-primary/10 text-primary font-semibold hover:bg-primary/10 hover:text-primary" 
-                              : "hover:bg-primary/5 hover:text-primary/80 text-foreground"
-                          )}
+                          className="sidebar-nav-link"
+                          style={{
+                            width: '100%',
+                            justifyContent: 'flex-start',
+                            gap: '0.75rem',
+                            height: '2.75rem',
+                            position: 'relative',
+                            display: 'flex',
+                            alignItems: 'center',
+                            paddingLeft: '0.75rem',
+                            paddingRight: '0.75rem',
+                            borderRadius: '0.375rem',
+                            backgroundColor: active ? 'rgba(91, 91, 255, 0.1)' : 'transparent',
+                            color: active ? '#5b5bff' : (isDark ? '#fafafa' : '#000000'),
+                            textDecoration: 'none'
+                          }}
+                          ref={(linkEl) => {
+                            if (linkEl) {
+                              requestAnimationFrame(() => {
+                                const linkColor = active ? '#5b5bff' : (isDark ? '#fafafa' : '#000000');
+                                linkEl.style.setProperty('color', linkColor, 'important');
+                                linkEl.style.setProperty('text-decoration', 'none', 'important');
+                                // Remove any Tailwind classes that might interfere
+                                linkEl.className = 'sidebar-nav-link';
+                              });
+                            }
+                          }}
                         >
                           {active && (
                             <motion.div
