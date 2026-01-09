@@ -65,10 +65,21 @@ export async function POST(req: NextRequest) {
 
       console.log(`🔄 Restarting import from row ${startFromRow} (${rows.length - startFromRow} rows remaining)`)
 
-      // Continue processing in background (non-blocking)
-      processAllRows(sessionId, rows, mappingConfig, startFromRow).catch((error) => {
-        console.error('Resume import failed:', error)
-      })
+      // Continue processing in background (fire-and-forget)
+      // Use void to ensure it doesn't block the response
+      void (async () => {
+        try {
+          await processAllRows(sessionId, rows, mappingConfig, startFromRow)
+        } catch (error: any) {
+          console.error('❌ Resume import failed:', error)
+          try {
+            const { failImportSession } = await import('@/lib/csv-import-session')
+            await failImportSession(sessionId, error.message || 'Resume import failed')
+          } catch (failError) {
+            console.error('Failed to mark session as failed:', failError)
+          }
+        }
+      })()
     } else {
       // CSV content not provided - this is okay if status is paused, the import loop will check
       // the status and continue automatically when it sees status changed to 'in_progress'

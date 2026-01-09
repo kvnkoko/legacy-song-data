@@ -768,15 +768,21 @@ export async function POST(req: NextRequest) {
       mappingConfig,
     })
     
-    // Start processing in background
-    setImmediate(() => {
-      processAllRows(importSession.id, rows, mappingConfig, 0).catch((error) => {
+    // Start processing in background (fire-and-forget)
+    // Use void to ensure it doesn't block the response
+    // This works better on Vercel serverless than setImmediate
+    void (async () => {
+      try {
+        await processAllRows(importSession.id, rows, mappingConfig, 0)
+      } catch (error: any) {
         console.error('❌ Background import failed:', error)
-        failImportSession(importSession.id, error.message || 'Import failed').catch((failError) => {
+        try {
+          await failImportSession(importSession.id, error.message || 'Import failed')
+        } catch (failError) {
           console.error('Failed to mark session as failed:', failError)
-        })
-      })
-    })
+        }
+      }
+    })()
     
     return NextResponse.json({
       success: true,
