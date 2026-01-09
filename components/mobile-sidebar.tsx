@@ -46,7 +46,9 @@ export function MobileSidebar({ userRole, userEmail }: MobileSidebarProps) {
   // #region agent log
   useEffect(() => {
     if (mounted) {
-      fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mobile-sidebar.tsx:45',message:'Theme detection values',data:{mounted,theme,resolvedTheme,isDark},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      const logData = {location:'mobile-sidebar.tsx:45',message:'Theme detection values',data:{mounted,theme,resolvedTheme,isDark},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'};
+      console.log('[DEBUG] Mobile Sidebar Theme:', logData);
+      fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch(()=>{});
     }
   }, [mounted, theme, resolvedTheme, isDark]);
   // #endregion
@@ -153,7 +155,9 @@ export function MobileSidebar({ userRole, userEmail }: MobileSidebarProps) {
                         transition={{ delay: index * 0.05 }}
                         onAnimationComplete={() => {
                           // #region agent log
-                          fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mobile-sidebar.tsx:146',message:'Motion animation completed',data:{label:item.label},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+                          const logData = {location:'mobile-sidebar.tsx:146',message:'Motion animation completed',data:{label:item.label},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'};
+                          console.log('[DEBUG] Mobile Motion Complete:', logData);
+                          fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch(()=>{});
                           // #endregion
                         }}
                       >
@@ -205,7 +209,9 @@ export function MobileSidebar({ userRole, userEmail }: MobileSidebarProps) {
                               if (el) {
                                 const computed = window.getComputedStyle(el);
                                 // #region agent log
-                                fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mobile-sidebar.tsx:185',message:'Span computed styles',data:{label:item.label,active,isDark,inlineColor:active?'#5b5bff':isDark?'#fafafa':'#000000',computedColor:computed.color,computedOpacity:computed.opacity,computedVisibility:computed.visibility,computedDisplay:computed.display,zIndex:computed.zIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,C,D,E'})}).catch(()=>{});
+                                const logData = {location:'mobile-sidebar.tsx:185',message:'Span computed styles',data:{label:item.label,active,isDark,inlineColor:active?'#5b5bff':isDark?'#fafafa':'#000000',computedColor:computed.color,computedOpacity:computed.opacity,computedVisibility:computed.visibility,computedDisplay:computed.display,zIndex:computed.zIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,C,D,E'};
+                                console.log('[DEBUG] Mobile Sidebar Text Styles:', logData);
+                                fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch(()=>{});
                                 // #endregion
                               }
                             }}

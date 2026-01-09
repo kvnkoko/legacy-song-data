@@ -45,7 +45,9 @@ export function DashboardSidebar({ userRole, userEmail }: SidebarProps) {
   // #region agent log
   React.useEffect(() => {
     if (mounted) {
-      fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'dashboard-sidebar.tsx:44',message:'Theme detection values',data:{mounted,theme,resolvedTheme,isDark},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      const logData = {location:'dashboard-sidebar.tsx:44',message:'Theme detection values',data:{mounted,theme,resolvedTheme,isDark},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'};
+      console.log('[DEBUG] Sidebar Theme:', logData);
+      fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch(()=>{});
     }
   }, [mounted, theme, resolvedTheme, isDark]);
   // #endregion
@@ -123,7 +125,9 @@ export function DashboardSidebar({ userRole, userEmail }: SidebarProps) {
                 transition={shouldReduceMotion ? {} : { delay: index * 0.03, duration: 0.2 }}
                 onAnimationComplete={() => {
                   // #region agent log
-                  fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'dashboard-sidebar.tsx:116',message:'Motion animation completed',data:{label:item.label,shouldReduceMotion},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+                  const logData = {location:'dashboard-sidebar.tsx:116',message:'Motion animation completed',data:{label:item.label,shouldReduceMotion},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'};
+                  console.log('[DEBUG] Motion Complete:', logData);
+                  fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch(()=>{});
                   // #endregion
                 }}
               >
@@ -182,7 +186,9 @@ export function DashboardSidebar({ userRole, userEmail }: SidebarProps) {
                       if (el) {
                         const computed = window.getComputedStyle(el);
                         // #region agent log
-                        fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'dashboard-sidebar.tsx:162',message:'Span computed styles',data:{label:item.label,active,isDark,inlineColor:active?'#5b5bff':isDark?'#fafafa':'#000000',computedColor:computed.color,computedOpacity:computed.opacity,computedVisibility:computed.visibility,computedDisplay:computed.display,zIndex:computed.zIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,C,D,E'})}).catch(()=>{});
+                        const logData = {location:'dashboard-sidebar.tsx:162',message:'Span computed styles',data:{label:item.label,active,isDark,inlineColor:active?'#5b5bff':isDark?'#fafafa':'#000000',computedColor:computed.color,computedOpacity:computed.opacity,computedVisibility:computed.visibility,computedDisplay:computed.display,zIndex:computed.zIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,C,D,E'};
+                        console.log('[DEBUG] Sidebar Text Styles:', logData);
+                        fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch(()=>{});
                         // #endregion
                       }
                     }}
