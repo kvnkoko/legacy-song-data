@@ -169,51 +169,72 @@ export function DashboardSidebar({ userRole, userEmail }: SidebarProps) {
                     }}
                   />
                   <span 
-                    className={cn(
-                      "transition-colors font-medium text-base sidebar-nav-text"
-                    )}
+                    className="sidebar-nav-text"
                     style={{
                       color: active 
                         ? '#5b5bff' 
                         : isDark 
                           ? '#fafafa' 
                           : '#000000',
-                      opacity: '1 !important',
-                      visibility: 'visible !important',
+                      opacity: 1,
+                      visibility: 'visible',
                       display: 'inline-block',
                       WebkitFontSmoothing: 'antialiased',
                       MozOsxFontSmoothing: 'grayscale',
                       textRendering: 'optimizeLegibility',
-                      zIndex: 10,
-                      position: 'relative'
-                    } as React.CSSProperties}
+                      zIndex: 9999,
+                      position: 'relative',
+                      fontWeight: 500,
+                      fontSize: '1rem',
+                      lineHeight: '1.5'
+                    }}
                     ref={(el) => {
                       if (el) {
-                        // Force style application for Windows - use setTimeout to ensure DOM is ready
-                        setTimeout(() => {
+                        // Force style application for Windows - use requestAnimationFrame for better timing
+                        requestAnimationFrame(() => {
                           const color = active ? '#5b5bff' : (isDark ? '#fafafa' : '#000000');
-                          // Multiple attempts to force the color
-                          el.style.color = color;
+                          
+                          // Remove all conflicting classes that might override
+                          el.className = 'sidebar-nav-text';
+                          
+                          // Direct style assignment (highest priority)
+                          el.style.cssText = `
+                            color: ${color} !important;
+                            opacity: 1 !important;
+                            visibility: visible !important;
+                            display: inline-block !important;
+                            -webkit-font-smoothing: antialiased !important;
+                            -moz-osx-font-smoothing: grayscale !important;
+                            text-rendering: optimizeLegibility !important;
+                            z-index: 9999 !important;
+                            position: relative !important;
+                            font-weight: 500 !important;
+                            font-size: 1rem !important;
+                            line-height: 1.5 !important;
+                          `;
+                          
+                          // Also set via setProperty as backup
                           el.style.setProperty('color', color, 'important');
                           el.style.setProperty('opacity', '1', 'important');
                           el.style.setProperty('visibility', 'visible', 'important');
-                          el.style.setProperty('display', 'inline-block', 'important');
-                          el.style.setProperty('-webkit-font-smoothing', 'antialiased', 'important');
-                          el.style.setProperty('-moz-osx-font-smoothing', 'grayscale', 'important');
                           
-                          // Also try setting on parent if needed
+                          // Check parent and remove any conflicting styles
                           const parent = el.parentElement;
                           if (parent) {
-                            parent.style.setProperty('color', color, 'important');
+                            const parentComputed = window.getComputedStyle(parent);
+                            // If parent has a color that might interfere, override it
+                            if (parentComputed.color && parentComputed.color !== color) {
+                              parent.style.setProperty('color', 'transparent', 'important');
+                            }
                           }
                           
                           const computed = window.getComputedStyle(el);
                           // #region agent log
-                          const logData = {location:'dashboard-sidebar.tsx:162',message:'Span computed styles after fix',data:{label:item.label,active,isDark,inlineColor:color,computedColor:computed.color,computedOpacity:computed.opacity,computedVisibility:computed.visibility,computedDisplay:computed.display,zIndex:computed.zIndex,backgroundColor:computed.backgroundColor,parentColor:parent?window.getComputedStyle(parent).color:'none'},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A,C,D,E'};
-                          console.log('[DEBUG] Sidebar Text Styles (after fix):', logData);
+                          const logData = {location:'dashboard-sidebar.tsx:162',message:'Span computed styles after cssText fix',data:{label:item.label,active,isDark,inlineColor:color,computedColor:computed.color,computedOpacity:computed.opacity,computedVisibility:computed.visibility,computedDisplay:computed.display,zIndex:computed.zIndex,backgroundColor:computed.backgroundColor,parentColor:parent?window.getComputedStyle(parent).color:'none',fontSize:computed.fontSize,fontWeight:computed.fontWeight},timestamp:Date.now(),sessionId:'debug-session',runId:'run3',hypothesisId:'A,C,D,E'};
+                          console.log('[DEBUG] Sidebar Text Styles (cssText fix):', logData);
                           fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch(()=>{});
                           // #endregion
-                        }, 0);
+                        });
                       }
                     }}
                   >
