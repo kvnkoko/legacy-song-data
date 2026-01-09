@@ -252,9 +252,53 @@ export function MobileSidebar({ userRole, userEmail }: MobileSidebarProps) {
                                   }
                                   
                                   const computed = window.getComputedStyle(el);
+                                  const parentComputed = parent ? window.getComputedStyle(parent) : null;
+                                  const linkElement = el.closest('a');
+                                  const linkComputed = linkElement ? window.getComputedStyle(linkElement) : null;
+                                  
+                                  // Check if element is actually visible and has dimensions
+                                  const rect = el.getBoundingClientRect();
+                                  const hasText = el.textContent && el.textContent.trim().length > 0;
+                                  
                                   // #region agent log
-                                  const logData = {location:'mobile-sidebar.tsx:185',message:'Span computed styles after cssText fix',data:{label:item.label,active,isDark,inlineColor:color,computedColor:computed.color,computedOpacity:computed.opacity,computedVisibility:computed.visibility,computedDisplay:computed.display,zIndex:computed.zIndex,backgroundColor:computed.backgroundColor,parentColor:parent?window.getComputedStyle(parent).color:'none',fontSize:computed.fontSize,fontWeight:computed.fontWeight},timestamp:Date.now(),sessionId:'debug-session',runId:'run3',hypothesisId:'A,C,D,E'};
-                                  console.log('[DEBUG] Mobile Sidebar Text Styles (cssText fix):', logData);
+                                  const logData = {
+                                    location:'mobile-sidebar.tsx:185',
+                                    message:'Comprehensive span analysis',
+                                    data:{
+                                      label:item.label,
+                                      active,
+                                      isDark,
+                                      inlineColor:color,
+                                      computedColor:computed.color,
+                                      computedOpacity:computed.opacity,
+                                      computedVisibility:computed.visibility,
+                                      computedDisplay:computed.display,
+                                      zIndex:computed.zIndex,
+                                      backgroundColor:computed.backgroundColor,
+                                      parentColor:parentComputed?.color || 'none',
+                                      linkColor:linkComputed?.color || 'none',
+                                      linkBackground:linkComputed?.backgroundColor || 'none',
+                                      fontSize:computed.fontSize,
+                                      fontWeight:computed.fontWeight,
+                                      width:rect.width,
+                                      height:rect.height,
+                                      hasText,
+                                      textContent:el.textContent?.substring(0,20),
+                                      offsetWidth:el.offsetWidth,
+                                      offsetHeight:el.offsetHeight,
+                                      clientWidth:el.clientWidth,
+                                      clientHeight:el.clientHeight,
+                                      transform:computed.transform,
+                                      clipPath:computed.clipPath,
+                                      overflow:computed.overflow,
+                                      textShadow:computed.textShadow
+                                    },
+                                    timestamp:Date.now(),
+                                    sessionId:'debug-session',
+                                    runId:'run4',
+                                    hypothesisId:'A,C,D,E,F'
+                                  };
+                                  console.log('[DEBUG] Comprehensive Mobile Sidebar Analysis:', logData);
                                   fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch(()=>{});
                                   // #endregion
                                 });
