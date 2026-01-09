@@ -170,23 +170,33 @@ export function DashboardSidebar({ userRole, userEmail }: SidebarProps) {
                   />
                   <span 
                     className={cn(
-                      "transition-colors font-medium text-base sidebar-nav-text",
-                      active 
-                        ? "text-primary group-hover:!text-primary font-semibold" 
-                        : "text-foreground group-hover:text-primary/80"
+                      "transition-colors font-medium text-base sidebar-nav-text"
                     )}
                     style={{
                       color: active 
                         ? '#5b5bff' 
                         : isDark 
                           ? '#fafafa' 
-                          : '#000000'
-                    }}
+                          : '#000000',
+                      opacity: '1 !important',
+                      visibility: 'visible !important',
+                      display: 'inline-block',
+                      WebkitFontSmoothing: 'antialiased',
+                      MozOsxFontSmoothing: 'grayscale',
+                      textRendering: 'optimizeLegibility',
+                      zIndex: 10,
+                      position: 'relative'
+                    } as React.CSSProperties}
                     ref={(el) => {
                       if (el) {
+                        // Force style application for Windows
+                        const color = active ? '#5b5bff' : (isDark ? '#fafafa' : '#000000');
+                        el.style.setProperty('color', color, 'important');
+                        el.style.setProperty('opacity', '1', 'important');
+                        el.style.setProperty('visibility', 'visible', 'important');
                         const computed = window.getComputedStyle(el);
                         // #region agent log
-                        const logData = {location:'dashboard-sidebar.tsx:162',message:'Span computed styles',data:{label:item.label,active,isDark,inlineColor:active?'#5b5bff':isDark?'#fafafa':'#000000',computedColor:computed.color,computedOpacity:computed.opacity,computedVisibility:computed.visibility,computedDisplay:computed.display,zIndex:computed.zIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,C,D,E'};
+                        const logData = {location:'dashboard-sidebar.tsx:162',message:'Span computed styles',data:{label:item.label,active,isDark,inlineColor:color,computedColor:computed.color,computedOpacity:computed.opacity,computedVisibility:computed.visibility,computedDisplay:computed.display,zIndex:computed.zIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,C,D,E'};
                         console.log('[DEBUG] Sidebar Text Styles:', logData);
                         fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch(()=>{});
                         // #endregion
