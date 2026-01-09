@@ -105,7 +105,7 @@ export function MobileSidebar({ userRole, userEmail }: MobileSidebarProps) {
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed left-0 top-0 h-full w-64 bg-card/95 backdrop-blur-xl border-r border-border/50 z-50 lg:hidden shadow-purple-lg"
+              className="mobile-sidebar fixed left-0 top-0 h-full w-64 bg-card border-r border-border/50 z-50 lg:hidden shadow-purple-lg"
             >
               <div className="flex flex-col h-full">
                 <div className="p-6 border-b border-border/50 bg-gradient-to-br from-primary/5 to-transparent">
@@ -166,10 +166,16 @@ export function MobileSidebar({ userRole, userEmail }: MobileSidebarProps) {
                             "w-5 h-5 transition-colors flex-shrink-0",
                             active ? "text-primary group-hover:!text-primary" : "text-muted-foreground group-hover:text-primary/80"
                           )} />
-                          <span className={cn(
-                            "transition-colors font-medium",
-                            active ? "text-primary group-hover:!text-primary" : "text-foreground group-hover:text-primary/80"
-                          )}>{item.label}</span>
+                          <span 
+                            className={cn(
+                              "transition-colors font-medium text-base sidebar-nav-text",
+                              active 
+                                ? "text-primary group-hover:!text-primary font-semibold" 
+                                : "text-foreground group-hover:text-primary/80"
+                            )}
+                          >
+                            {item.label}
+                          </span>
                         </Link>
                       </motion.div>
                     )

@@ -50,6 +50,62 @@
     padding-bottom: 0.75rem !important;
     line-height: 1.6 !important;
   }
+  
+  /* Global text wrapping and zoom support */
+  html {
+    overflow-x: hidden;
+    width: 100%;
+    max-width: 100vw;
+  }
+  
+  body {
+    overflow-x: hidden;
+    width: 100%;
+    max-width: 100vw;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+  
+  /* Ensure all text elements wrap properly when zoomed */
+  h1, h2, h3, h4, h5, h6, p, span, div, a, li, td, th, label, button {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
+    -webkit-hyphens: auto;
+    -ms-hyphens: auto;
+  }
+  
+  /* Long words should break to prevent overflow */
+  * {
+    overflow-wrap: break-word;
+    word-break: break-word;
+  }
+  
+  /* But preserve normal word-break for better readability in paragraphs */
+  p, li, td, th {
+    word-break: normal;
+    overflow-wrap: anywhere;
+  }
+  
+  /* Prevent horizontal overflow on all containers */
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+  
+  /* Ensure cards and containers scale properly */
+  [class*="card"], [class*="Card"], 
+  .container, .container-fluid,
+  section, article, main, header, footer, aside, nav {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+  
+  /* Responsive text sizing with clamp for better zoom support */
+  @media (max-width: 640px) {
+    h1 { font-size: clamp(1.5rem, 5vw, 2.25rem); }
+    h2 { font-size: clamp(1.25rem, 4vw, 1.875rem); }
+    h3 { font-size: clamp(1.125rem, 3.5vw, 1.5rem); }
+  }
 }
 
 /* Satoshi Variable Font */
@@ -172,6 +228,57 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     letter-spacing: -0.011em;
+  }
+  
+  /* Windows-specific text rendering fixes for sidebar */
+  /* Fix for Windows browsers that have issues with backdrop-blur and text visibility */
+  .dashboard-sidebar,
+  .mobile-sidebar {
+    /* Ensure solid background on Windows - no transparency issues */
+    background-color: hsl(var(--card));
+  }
+  
+  /* Ensure sidebar navigation text is always visible on Windows */
+  /* Use explicit class selector for better Windows compatibility */
+  .sidebar-nav-text {
+    /* Fallback for Windows browsers that don't support CSS custom properties well */
+    color: #000000;
+    color: hsl(var(--foreground));
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  
+  .dark .sidebar-nav-text {
+    color: #fafafa;
+    color: hsl(var(--foreground));
+  }
+  
+  /* Active state text color */
+  .dashboard-sidebar nav a.text-primary .sidebar-nav-text,
+  .mobile-sidebar nav a.text-primary .sidebar-nav-text {
+    color: #5b5bff;
+    color: hsl(var(--primary));
+  }
+  
+  /* Icon colors - ensure visibility */
+  .dashboard-sidebar nav a svg,
+  .mobile-sidebar nav a svg {
+    color: #737373;
+    color: hsl(var(--muted-foreground));
+  }
+  
+  .dark .dashboard-sidebar nav a svg,
+  .dark .mobile-sidebar nav a svg {
+    color: #a3a3a3;
+    color: hsl(var(--muted-foreground));
+  }
+  
+  /* Active state icon color */
+  .dashboard-sidebar nav a.text-primary svg,
+  .mobile-sidebar nav a.text-primary svg {
+    color: #5b5bff;
+    color: hsl(var(--primary));
   }
   
   /* Enhanced Typography Scale - Premium feel */

@@ -78,7 +78,7 @@ export function DashboardSidebar({ userRole, userEmail }: SidebarProps) {
       <MobileSidebar userRole={userRole} userEmail={userEmail} />
 
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex w-64 border-r border-border/50 bg-card/80 backdrop-blur-xl supports-[backdrop-filter]:bg-card/80 flex-col h-screen sticky top-0 shadow-purple">
+      <aside className="dashboard-sidebar hidden lg:flex w-64 border-r border-border/50 bg-card flex-col h-screen sticky top-0 shadow-purple">
         <div className="p-6 border-b border-border/50 bg-gradient-to-br from-primary/5 to-transparent">
           <div className="flex items-center justify-between mb-4 gap-3">
             <Link 
@@ -143,10 +143,16 @@ export function DashboardSidebar({ userRole, userEmail }: SidebarProps) {
                     "w-5 h-5 transition-colors flex-shrink-0",
                     active ? "text-primary group-hover:!text-primary" : "text-muted-foreground group-hover:text-primary/80"
                   )} />
-                  <span className={cn(
-                    "transition-colors font-medium",
-                    active ? "text-primary group-hover:!text-primary" : "text-foreground group-hover:text-primary/80"
-                  )}>{item.label}</span>
+                  <span 
+                    className={cn(
+                      "transition-colors font-medium text-base sidebar-nav-text",
+                      active 
+                        ? "text-primary group-hover:!text-primary font-semibold" 
+                        : "text-foreground group-hover:text-primary/80"
+                    )}
+                  >
+                    {item.label}
+                  </span>
                 </Link>
               </motion.div>
             )
