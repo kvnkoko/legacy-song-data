@@ -123,6 +123,46 @@ export function DashboardSidebar({ userRole, userEmail }: SidebarProps) {
                 initial={shouldReduceMotion ? {} : { opacity: 0, x: -20 }}
                 animate={shouldReduceMotion ? {} : { opacity: 1, x: 0 }}
                 transition={shouldReduceMotion ? {} : { delay: index * 0.03, duration: 0.2 }}
+                ref={(motionEl) => {
+                  if (motionEl) {
+                    // Force motion.div to be visible - Windows might be stuck in initial state
+                    requestAnimationFrame(() => {
+                      const motionComputed = window.getComputedStyle(motionEl);
+                      // #region agent log
+                      const logData = {
+                        location:'dashboard-sidebar.tsx:121',
+                        message:'Motion div visibility check',
+                        data:{
+                          label:item.label,
+                          computedOpacity:motionComputed.opacity,
+                          computedVisibility:motionComputed.visibility,
+                          computedDisplay:motionComputed.display,
+                          computedTransform:motionComputed.transform,
+                          shouldReduceMotion
+                        },
+                        timestamp:Date.now(),
+                        sessionId:'debug-session',
+                        runId:'run8',
+                        hypothesisId:'N'
+                      };
+                      console.log('[DEBUG] Motion Div Analysis:', logData);
+                      fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch(()=>{});
+                      // #endregion
+                      
+                      // Force visibility on motion.div itself
+                      (motionEl as HTMLElement).style.setProperty('opacity', '1', 'important');
+                      (motionEl as HTMLElement).style.setProperty('visibility', 'visible', 'important');
+                      (motionEl as HTMLElement).style.setProperty('transform', 'translateX(0)', 'important');
+                      
+                      // Also force after a delay to override any animation
+                      setTimeout(() => {
+                        (motionEl as HTMLElement).style.setProperty('opacity', '1', 'important');
+                        (motionEl as HTMLElement).style.setProperty('visibility', 'visible', 'important');
+                        (motionEl as HTMLElement).style.setProperty('transform', 'translateX(0)', 'important');
+                      }, 500);
+                    });
+                  }
+                }}
                 onAnimationComplete={() => {
                   // #region agent log
                   const logData = {location:'dashboard-sidebar.tsx:116',message:'Motion animation completed',data:{label:item.label,shouldReduceMotion},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'};
@@ -410,6 +450,7 @@ export function DashboardSidebar({ userRole, userEmail }: SidebarProps) {
                             hypothesisId:'I'
                           };
                           console.log('[DEBUG] Parent Chain & Overlay Analysis:', logData);
+                          console.log('[DEBUG] FULL DATA (copy this):', JSON.stringify(logData, null, 2));
                           fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch(()=>{});
                           // #endregion
                         });

@@ -153,6 +153,45 @@ export function MobileSidebar({ userRole, userEmail }: MobileSidebarProps) {
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: index * 0.05 }}
+                        ref={(motionEl) => {
+                          if (motionEl) {
+                            // Force motion.div to be visible - Windows might be stuck in initial state
+                            requestAnimationFrame(() => {
+                              const motionComputed = window.getComputedStyle(motionEl);
+                              // #region agent log
+                              const logData = {
+                                location:'mobile-sidebar.tsx:151',
+                                message:'Motion div visibility check',
+                                data:{
+                                  label:item.label,
+                                  computedOpacity:motionComputed.opacity,
+                                  computedVisibility:motionComputed.visibility,
+                                  computedDisplay:motionComputed.display,
+                                  computedTransform:motionComputed.transform
+                                },
+                                timestamp:Date.now(),
+                                sessionId:'debug-session',
+                                runId:'run8',
+                                hypothesisId:'N'
+                              };
+                              console.log('[DEBUG] Mobile Motion Div Analysis:', logData);
+                              fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch(()=>{});
+                              // #endregion
+                              
+                              // Force visibility on motion.div itself
+                              (motionEl as HTMLElement).style.setProperty('opacity', '1', 'important');
+                              (motionEl as HTMLElement).style.setProperty('visibility', 'visible', 'important');
+                              (motionEl as HTMLElement).style.setProperty('transform', 'translateX(0)', 'important');
+                              
+                              // Also force after a delay to override any animation
+                              setTimeout(() => {
+                                (motionEl as HTMLElement).style.setProperty('opacity', '1', 'important');
+                                (motionEl as HTMLElement).style.setProperty('visibility', 'visible', 'important');
+                                (motionEl as HTMLElement).style.setProperty('transform', 'translateX(0)', 'important');
+                              }, 500);
+                            });
+                          }
+                        }}
                         onAnimationComplete={() => {
                           // #region agent log
                           const logData = {location:'mobile-sidebar.tsx:146',message:'Motion animation completed',data:{label:item.label},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'};
@@ -433,6 +472,7 @@ export function MobileSidebar({ userRole, userEmail }: MobileSidebarProps) {
                                     hypothesisId:'I'
                                   };
                                   console.log('[DEBUG] Mobile Parent Chain & Overlay Analysis:', logData);
+                                  console.log('[DEBUG] FULL DATA (copy this):', JSON.stringify(logData, null, 2));
                                   fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch(()=>{});
                                   // #endregion
                                 });
