@@ -42,6 +42,13 @@ export function DashboardSidebar({ userRole, userEmail }: SidebarProps) {
 
   // Determine which logo to show based on theme
   const isDark = mounted && (resolvedTheme === 'dark' || theme === 'dark')
+  // #region agent log
+  React.useEffect(() => {
+    if (mounted) {
+      fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'dashboard-sidebar.tsx:44',message:'Theme detection values',data:{mounted,theme,resolvedTheme,isDark},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    }
+  }, [mounted, theme, resolvedTheme, isDark]);
+  // #endregion
   const logoSrc = isDark 
     ? '/Horizontal Logo, White 2.png' 
     : '/Horizontal Logo Black.png'
@@ -114,6 +121,11 @@ export function DashboardSidebar({ userRole, userEmail }: SidebarProps) {
                 initial={shouldReduceMotion ? {} : { opacity: 0, x: -20 }}
                 animate={shouldReduceMotion ? {} : { opacity: 1, x: 0 }}
                 transition={shouldReduceMotion ? {} : { delay: index * 0.03, duration: 0.2 }}
+                onAnimationComplete={() => {
+                  // #region agent log
+                  fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'dashboard-sidebar.tsx:116',message:'Motion animation completed',data:{label:item.label,shouldReduceMotion},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+                  // #endregion
+                }}
               >
                 <Link 
                   href={item.href}
@@ -165,6 +177,14 @@ export function DashboardSidebar({ userRole, userEmail }: SidebarProps) {
                         : isDark 
                           ? '#fafafa' 
                           : '#000000'
+                    }}
+                    ref={(el) => {
+                      if (el) {
+                        const computed = window.getComputedStyle(el);
+                        // #region agent log
+                        fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'dashboard-sidebar.tsx:162',message:'Span computed styles',data:{label:item.label,active,isDark,inlineColor:active?'#5b5bff':isDark?'#fafafa':'#000000',computedColor:computed.color,computedOpacity:computed.opacity,computedVisibility:computed.visibility,computedDisplay:computed.display,zIndex:computed.zIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,C,D,E'})}).catch(()=>{});
+                        // #endregion
+                      }
                     }}
                   >
                     {item.label}
