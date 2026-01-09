@@ -449,81 +449,139 @@ export default function ImportCSVPage() {
       const result = await response.json()
       
       if (result.sessionId) {
-        // Check if this is a resume (existing session)
-        if (result.resume) {
-          // Resume from existing session
-          setImportProgress({
-            sessionId: result.sessionId,
-            totalRows: result.totalRows,
-            rowsProcessed: result.rowsProcessed || 0,
-            percentage: result.totalRows > 0 ? Math.round((result.rowsProcessed / result.totalRows) * 100) : 0,
-            status: 'in_progress',
-          })
-        } else {
-          // Start polling for progress
-          setImportProgress({
-            sessionId: result.sessionId,
-            totalRows: result.totalRows,
-            rowsProcessed: 0,
-            percentage: 0,
-            status: 'in_progress',
-          })
-        }
+        // Initialize progress state
+        setImportProgress({
+          sessionId: result.sessionId,
+          totalRows: result.totalRows,
+          rowsProcessed: result.rowsProcessed || 0,
+          percentage: result.totalRows > 0 ? Math.round(((result.rowsProcessed || 0) / result.totalRows) * 100) : 0,
+          status: 'in_progress',
+        })
         
-        // Poll for progress
+        // Start batch processing (chunked for Vercel free tier)
         setPollingActive(true)
         pollingActiveRef.current = true
         
-        const pollProgress = async () => {
-          // Check if polling should continue
+        const processNextBatch = async () => {
+          // Check if processing should continue
           if (!pollingActiveRef.current) {
             return
           }
           
           try {
-            const progressResponse = await fetch(
-              `/api/import/csv/progress-simple?sessionId=${result.sessionId}`
-            )
-            if (!progressResponse.ok) {
-              // If progress endpoint fails, just wait and retry (import continues in background)
+            // Call batch processor endpoint
+            const batchResponse = await fetch('/api/import/csv/process-batch', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ sessionId: result.sessionId }),
+            })
+            
+            if (!batchResponse.ok) {
+              // If batch endpoint fails, check progress and retry
+              const errorData = await batchResponse.json().catch(() => ({}))
+              console.warn('Batch processing error:', errorData.error || 'Unknown error')
+              
+              // Check progress to see current state
+              const progressResponse = await fetch(
+                `/api/import/csv/progress-simple?sessionId=${result.sessionId}`
+              )
+              if (progressResponse.ok) {
+                const progressData = await progressResponse.json()
+                setImportProgress({
+                  sessionId: result.sessionId,
+                  totalRows: progressData.totalRows || result.totalRows,
+                  rowsProcessed: progressData.rowsProcessed || 0,
+                  percentage: progressData.percentage || 0,
+                  status: progressData.status || 'in_progress',
+                })
+                
+                if (progressData.status === 'completed' || progressData.status === 'failed' || progressData.status === 'cancelled') {
+                  setLoading(false)
+                  setPollingActive(false)
+                  pollingActiveRef.current = false
+                  if (progressData.status === 'completed') {
+                    // Check for failed rows
+                    try {
+                      const failedRowsResponse = await fetch(
+                        `/api/import/csv/failed-rows?sessionId=${result.sessionId}`
+                      )
+                      if (failedRowsResponse.ok) {
+                        const failedData = await failedRowsResponse.json()
+                        if (failedData.failedRows && failedData.failedRows.length > 0) {
+                          setShowFailedRows(true)
+                          setImportProgress((prev) => prev ? { ...prev, status: 'completed_with_errors' } : null)
+                        } else {
+                          alert(`Import completed!\n\nProcessed: ${progressData.rowsProcessed} rows`)
+                          router.push('/releases').catch(() => { window.location.href = '/releases' })
+                        }
+                      } else {
+                        alert(`Import completed!\n\nProcessed: ${progressData.rowsProcessed} rows`)
+                        router.push('/releases').catch(() => { window.location.href = '/releases' })
+                      }
+                    } catch (fetchError) {
+                      console.error('Error checking failed rows:', fetchError)
+                      alert(`Import completed!\n\nProcessed: ${progressData.rowsProcessed} rows`)
+                      router.push('/releases').catch(() => { window.location.href = '/releases' })
+                    }
+                  } else if (progressData.status === 'failed') {
+                    setError(progressData.error || 'Import failed')
+                    setImportProgress(null)
+                  }
+                  return
+                }
+              }
+              
+              // Retry after delay
               if (pollingActiveRef.current) {
-                pollingTimeoutRef.current = setTimeout(pollProgress, 2000)
+                pollingTimeoutRef.current = setTimeout(processNextBatch, 2000)
               }
               return
             }
             
-            const progressData = await progressResponse.json()
+            const batchData = await batchResponse.json()
             
-            // Stop polling if session was cancelled
-            if (progressData.status === 'cancelled') {
-              setLoading(false)
-              setPollingActive(false)
-              pollingActiveRef.current = false
-              setError('Import was cancelled')
-              setImportProgress(null)
-              return
-            }
+            // Update progress
+            const percentage = batchData.totalRows > 0 
+              ? Math.round((batchData.rowsProcessed / batchData.totalRows) * 100) 
+              : 0
             
-            // Safely update progress state
+            setImportProgress({
+              sessionId: result.sessionId,
+              totalRows: batchData.totalRows || result.totalRows,
+              rowsProcessed: batchData.rowsProcessed || 0,
+              percentage,
+              status: batchData.completed ? 'completed' : 'in_progress',
+            })
+            
+            // Fetch stats for real-time error display
             try {
-              setImportProgress({
-                sessionId: result.sessionId,
-                totalRows: progressData.totalRows || result.totalRows,
-                rowsProcessed: progressData.rowsProcessed || 0,
-                percentage: progressData.percentage || 0,
-                status: progressData.status || 'in_progress',
-              })
-            } catch (stateError) {
-              console.error('Error updating import progress state:', stateError)
-              // Continue polling even if state update fails
+              const statsResponse = await fetch(
+                `/api/import/csv/stats?sessionId=${result.sessionId}`
+              )
+              if (statsResponse.ok) {
+                const statsData = await statsResponse.json()
+                setImportStats({
+                  totalFailed: statsData.totalFailed || 0,
+                  estimatedSuccess: statsData.estimatedSuccess || 0,
+                  actualSuccessCount: statsData.actualSuccessCount ?? statsData.estimatedSuccess ?? 0,
+                  actualErrorCount: statsData.actualErrorCount ?? 0,
+                  successRate: statsData.successRate || '0.0',
+                  errorCounts: statsData.errorCounts || {},
+                  sampleErrors: statsData.sampleErrors || [],
+                })
+              }
+            } catch (e) {
+              // Ignore stats errors
+              console.warn('Stats fetch error:', e)
             }
             
-            if (progressData.status === 'completed') {
+            if (batchData.completed) {
+              // Import complete
               setLoading(false)
               setPollingActive(false)
               pollingActiveRef.current = false
               
-              // Check if there are failed rows
+              // Check for failed rows
               try {
                 const failedRowsResponse = await fetch(
                   `/api/import/csv/failed-rows?sessionId=${result.sessionId}`
@@ -531,102 +589,60 @@ export default function ImportCSVPage() {
                 if (failedRowsResponse.ok) {
                   const failedData = await failedRowsResponse.json()
                   if (failedData.failedRows && failedData.failedRows.length > 0) {
-                    // Show failed rows review instead of redirecting
                     setShowFailedRows(true)
-                    setImportProgress((prev) => prev ? {
-                      ...prev,
-                      ...progressData,
-                      status: 'completed_with_errors',
-                    } : null)
+                    setImportProgress((prev) => prev ? { ...prev, status: 'completed_with_errors' } : null)
                   } else {
-                    // No failed rows, redirect to releases
-                    alert(`Import completed!\n\nProcessed: ${progressData.rowsProcessed} rows`)
-                    try {
-                      router.push('/releases')
-                    } catch (routerError) {
-                      window.location.href = '/releases'
-                    }
+                    alert(`Import completed!\n\nProcessed: ${batchData.rowsProcessed} rows`)
+                    router.push('/releases').catch(() => { window.location.href = '/releases' })
                   }
                 } else {
-                  // Couldn't check failed rows, just redirect
-                  alert(`Import completed!\n\nProcessed: ${progressData.rowsProcessed} rows`)
-                  try {
-                    router.push('/releases')
-                  } catch (routerError) {
-                    window.location.href = '/releases'
-                  }
+                  alert(`Import completed!\n\nProcessed: ${batchData.rowsProcessed} rows`)
+                  router.push('/releases').catch(() => { window.location.href = '/releases' })
                 }
               } catch (fetchError) {
                 console.error('Error checking failed rows:', fetchError)
-                // Still redirect on error
-                alert(`Import completed!\n\nProcessed: ${progressData.rowsProcessed} rows`)
-                try {
-                  router.push('/releases')
-                } catch (routerError) {
-                  window.location.href = '/releases'
-                }
+                alert(`Import completed!\n\nProcessed: ${batchData.rowsProcessed} rows`)
+                router.push('/releases').catch(() => { window.location.href = '/releases' })
               }
-                  } else if (progressData.status === 'failed') {
-                    setLoading(false)
-                    setPollingActive(false)
-                    pollingActiveRef.current = false
-                    setError(progressData.error || 'Import failed')
-                    setImportProgress(null)
-                  } else if (progressData.status === 'paused') {
-                    // Import is paused - stop active processing but keep UI updated
-                    setLoading(false)
-                    // Don't stop polling - user might resume
-                    if (pollingActiveRef.current) {
-                      pollingTimeoutRef.current = setTimeout(pollProgress, 2000)
-                    }
-                  } else if (progressData.status === 'in_progress' || progressData.status === 'completed_with_errors') {
-                    // Continue polling if still in progress
-                    if (progressData.status === 'in_progress' && pollingActiveRef.current) {
-                // Also fetch stats to show errors in real-time
-                try {
-                  const statsResponse = await fetch(
-                    `/api/import/csv/stats?sessionId=${result.sessionId}`
-                  )
-                  if (statsResponse.ok) {
-                    const statsData = await statsResponse.json()
-                    try {
-                      setImportStats({
-                        totalFailed: statsData.totalFailed || 0,
-                        estimatedSuccess: statsData.estimatedSuccess || 0,
-                        actualSuccessCount: statsData.actualSuccessCount ?? statsData.estimatedSuccess ?? 0,
-                        actualErrorCount: statsData.actualErrorCount ?? 0,
-                        successRate: statsData.successRate || '0.0',
-                        errorCounts: statsData.errorCounts || {},
-                        sampleErrors: statsData.sampleErrors || [],
-                      })
-                    } catch (statsStateError) {
-                      console.error('Error updating import stats state:', statsStateError)
-                    }
-                  }
-                } catch (e) {
-                  // Ignore stats errors - import continues in background
-                  console.warn('Stats fetch error (import continues):', e)
-                }
-                pollingTimeoutRef.current = setTimeout(pollProgress, 1000)
-              }
-            } else {
-              // Unknown status, continue polling with longer delay
-              console.warn('Unknown import status:', progressData.status)
+            } else if (batchData.needsMore && pollingActiveRef.current) {
+              // Process next batch after a short delay
+              pollingTimeoutRef.current = setTimeout(processNextBatch, 100)
+            } else if (batchData.paused) {
+              // Import paused
+              setLoading(false)
               if (pollingActiveRef.current) {
-                pollingTimeoutRef.current = setTimeout(pollProgress, 2000)
+                pollingTimeoutRef.current = setTimeout(processNextBatch, 2000)
               }
             }
           } catch (err: any) {
-            console.error('Progress polling error (import continues in background):', err)
-            // Continue polling even on error - import is happening server-side
+            console.error('Batch processing error:', err)
+            // Continue processing on error
             if (pollingActiveRef.current) {
-              pollingTimeoutRef.current = setTimeout(pollProgress, 2000)
+              pollingTimeoutRef.current = setTimeout(processNextBatch, 2000)
             }
           }
         }
         
-        // Start polling after a short delay
-        pollingTimeoutRef.current = setTimeout(pollProgress, 500)
+        // Start processing batches
+        // If first batch was already processed, continue with next batch
+        if (result.needsMore) {
+          pollingTimeoutRef.current = setTimeout(processNextBatch, 100)
+        } else {
+          // First batch completed everything, check for completion
+          const progressResponse = await fetch(
+            `/api/import/csv/progress-simple?sessionId=${result.sessionId}`
+          )
+          if (progressResponse.ok) {
+            const progressData = await progressResponse.json()
+            if (progressData.status === 'completed') {
+              setLoading(false)
+              setPollingActive(false)
+              pollingActiveRef.current = false
+              alert(`Import completed!\n\nProcessed: ${progressData.rowsProcessed} rows`)
+              router.push('/releases').catch(() => { window.location.href = '/releases' })
+            }
+          }
+        }
       } else {
         throw new Error('No session ID returned')
       }

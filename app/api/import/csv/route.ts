@@ -759,36 +759,103 @@ export async function POST(req: NextRequest) {
       })
     }
     
+    // Store CSV rows in mappingConfig for chunked processing
+    // This allows us to process in small batches on Vercel free tier
+    const mappingConfigWithRows = {
+      ...mappingConfig,
+      _csvRows: rows,
+      _submissionsCreated: 0,
+      _submissionsUpdated: 0,
+      _songsCreated: 0,
+      _rowsSkipped: 0,
+      _failedRows: [] as Array<{ row: number; message: string }>,
+    }
+    
     // Create import session
     const importSession = await createImportSession({
       userId: session.user.id,
       fileHash,
       fileName: fileName || 'import.csv',
       totalRows: rows.length,
-      mappingConfig,
+      mappingConfig: mappingConfigWithRows,
     })
     
-    // Start processing in background (fire-and-forget)
-    // Use void to ensure it doesn't block the response
-    // This works better on Vercel serverless than setImmediate
-    void (async () => {
-      try {
-        await processAllRows(importSession.id, rows, mappingConfig, 0)
-      } catch (error: any) {
-        console.error('❌ Background import failed:', error)
+    // For Vercel free tier: Process first batch synchronously
+    // Frontend will call /api/import/csv/process-batch to continue
+    // This ensures we stay within the 10-second execution limit
+    const BATCH_SIZE = 20
+    const firstBatch = rows.slice(0, Math.min(BATCH_SIZE, rows.length))
+    
+    if (firstBatch.length > 0) {
+      // Process first batch immediately (within the request)
+      const mappings = mappingConfig.columns
+      const errors: Array<{ row: number; message: string }> = []
+      let submissionsCreated = 0
+      let submissionsUpdated = 0
+      let songsCreated = 0
+      let rowsSkipped = 0
+
+      const artistCache = new Map<string, { id: string; name: string }>()
+      const employeeCache = new Map<string, string>()
+      const channelCache = new Map<string, { id: string; name: string; platform: string }>()
+      const caches = { artistCache, employeeCache, channelCache }
+
+      for (let i = 0; i < firstBatch.length; i++) {
+        const row = firstBatch[i]
         try {
-          await failImportSession(importSession.id, error.message || 'Import failed')
-        } catch (failError) {
-          console.error('Failed to mark session as failed:', failError)
+          await prisma.$transaction(async (tx) => {
+            const result = await processRow(row, i, mappings, tx, caches)
+            if (result.success) {
+              if (result.releaseCreated) submissionsCreated++
+              if (result.releaseUpdated) submissionsUpdated++
+              if (result.tracksCreated) songsCreated += result.tracksCreated
+            } else {
+              errors.push({ row: i + 1, message: result.error || 'Unknown error' })
+              rowsSkipped++
+            }
+          }, { timeout: 30000, maxWait: 5000 })
+        } catch (error: any) {
+          errors.push({ row: i + 1, message: `Transaction failed: ${error.message || 'Unknown error'}` })
+          rowsSkipped++
         }
       }
-    })()
+
+      // Update progress and stats
+      await updateImportSessionProgress(importSession.id, firstBatch.length)
+      
+      const updatedMappingConfig = {
+        ...mappingConfigWithRows,
+        _submissionsCreated: submissionsCreated,
+        _submissionsUpdated: submissionsUpdated,
+        _songsCreated: songsCreated,
+        _rowsSkipped: rowsSkipped,
+        _failedRows: errors,
+      }
+
+      await prisma.importSession.update({
+        where: { id: importSession.id },
+        data: { mappingConfig: updatedMappingConfig },
+      })
+
+      // If all rows processed in first batch, complete the session
+      if (firstBatch.length >= rows.length) {
+        await completeImportSession(importSession.id, {
+          submissionsCreated,
+          submissionsUpdated,
+          songsCreated,
+          rowsSkipped,
+          errors: errors.length > 0 ? errors : undefined,
+        })
+      }
+    }
     
     return NextResponse.json({
       success: true,
       sessionId: importSession.id,
       totalRows: rows.length,
+      rowsProcessed: firstBatch.length,
       message: 'Import started',
+      needsMore: firstBatch.length < rows.length,
     })
               } catch (error: any) {
     console.error('CSV import error:', error)
