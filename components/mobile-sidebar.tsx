@@ -7,20 +7,20 @@ import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { useTheme } from 'next-themes'
 import { 
-  Menu,
+  List as Menu,
   X,
-  Home,
+  House as Home,
   Database,
   Calendar,
-  LineChart,
-  Settings,
+  ChartLine as LineChart,
+  Gear as Settings,
   Upload,
-  LogOut,
+  SignOut as LogOut,
   Users,
   User,
   FileText,
-  GitBranch
-} from 'lucide-react'
+  TreeStructure as GitBranch
+} from '@phosphor-icons/react'
 import { UserRole } from '@prisma/client'
 import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'

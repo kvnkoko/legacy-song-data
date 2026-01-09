@@ -8,18 +8,18 @@ import { Button } from '@/components/ui/button'
 import { motion, useReducedMotion } from 'framer-motion'
 import { useTheme } from 'next-themes'
 import { 
-  LogOut,
-  Home,
+  SignOut as LogOut,
+  House as Home,
   Database,
   Calendar,
-  LineChart,
-  Settings,
+  ChartLine as LineChart,
+  Gear as Settings,
   Upload,
   Users,
   User,
   FileText,
-  GitBranch,
-} from 'lucide-react'
+  TreeStructure as GitBranch,
+} from '@phosphor-icons/react'
 import { UserRole } from '@prisma/client'
 import { cn } from '@/lib/utils'
 import { MobileSidebar } from './mobile-sidebar'
