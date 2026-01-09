@@ -230,7 +230,14 @@ export function MobileSidebar({ userRole, userEmail }: MobileSidebarProps) {
                               position: 'relative',
                               fontWeight: 500,
                               fontSize: '1rem',
-                              lineHeight: '1.5'
+                              lineHeight: '1.5',
+                              // Force all properties that could hide text
+                              textShadow: 'none',
+                              clip: 'auto',
+                              clipPath: 'none',
+                              transform: 'none',
+                              filter: 'none',
+                              mixBlendMode: 'normal'
                             }}
                             ref={(el) => {
                               if (el) {
@@ -241,7 +248,7 @@ export function MobileSidebar({ userRole, userEmail }: MobileSidebarProps) {
                                   // Remove all conflicting classes that might override
                                   el.className = 'sidebar-nav-text';
                                   
-                                  // Direct style assignment (highest priority)
+                                  // Direct style assignment (highest priority) - include ALL properties
                                   el.style.cssText = `
                                     color: ${color} !important;
                                     opacity: 1 !important;
@@ -255,12 +262,25 @@ export function MobileSidebar({ userRole, userEmail }: MobileSidebarProps) {
                                     font-weight: 500 !important;
                                     font-size: 1rem !important;
                                     line-height: 1.5 !important;
+                                    text-shadow: none !important;
+                                    clip: auto !important;
+                                    clip-path: none !important;
+                                    transform: none !important;
+                                    filter: none !important;
+                                    mix-blend-mode: normal !important;
+                                    overflow: visible !important;
+                                    text-overflow: clip !important;
+                                    white-space: normal !important;
                                   `;
                                   
                                   // Also set via setProperty as backup
                                   el.style.setProperty('color', color, 'important');
                                   el.style.setProperty('opacity', '1', 'important');
                                   el.style.setProperty('visibility', 'visible', 'important');
+                                  el.style.setProperty('text-shadow', 'none', 'important');
+                                  el.style.setProperty('clip', 'auto', 'important');
+                                  el.style.setProperty('clip-path', 'none', 'important');
+                                  el.style.setProperty('transform', 'none', 'important');
                                   
                                   // Check parent and remove any conflicting styles
                                   const parent = el.parentElement;
@@ -268,8 +288,11 @@ export function MobileSidebar({ userRole, userEmail }: MobileSidebarProps) {
                                     const parentComputed = window.getComputedStyle(parent);
                                     // If parent has a color that might interfere, override it
                                     if (parentComputed.color && parentComputed.color !== color) {
-                                      parent.style.setProperty('color', 'transparent', 'important');
+                                      parent.style.setProperty('color', color, 'important');
                                     }
+                                    // Also ensure parent doesn't have properties that hide children
+                                    parent.style.setProperty('overflow', 'visible', 'important');
+                                    parent.style.setProperty('clip', 'auto', 'important');
                                   }
                                   
                                   const computed = window.getComputedStyle(el);
@@ -284,7 +307,7 @@ export function MobileSidebar({ userRole, userEmail }: MobileSidebarProps) {
                                   // #region agent log
                                   const logData = {
                                     location:'mobile-sidebar.tsx:185',
-                                    message:'Comprehensive span analysis',
+                                    message:'Comprehensive span analysis after all fixes',
                                     data:{
                                       label:item.label,
                                       active,
@@ -312,14 +335,16 @@ export function MobileSidebar({ userRole, userEmail }: MobileSidebarProps) {
                                       transform:computed.transform,
                                       clipPath:computed.clipPath,
                                       overflow:computed.overflow,
-                                      textShadow:computed.textShadow
+                                      textShadow:computed.textShadow,
+                                      mixBlendMode:computed.mixBlendMode,
+                                      filter:computed.filter
                                     },
                                     timestamp:Date.now(),
                                     sessionId:'debug-session',
-                                    runId:'run4',
-                                    hypothesisId:'A,C,D,E,F'
+                                    runId:'run5',
+                                    hypothesisId:'A,C,D,E,F,G'
                                   };
-                                  console.log('[DEBUG] Comprehensive Mobile Sidebar Analysis:', logData);
+                                  console.log('[DEBUG] Final Comprehensive Mobile Analysis:', logData);
                                   fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch(()=>{});
                                   // #endregion
                                 });
