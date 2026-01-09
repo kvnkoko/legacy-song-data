@@ -212,17 +212,31 @@ export function MobileSidebar({ userRole, userEmail }: MobileSidebarProps) {
                             } as React.CSSProperties}
                             ref={(el) => {
                               if (el) {
-                                // Force style application for Windows
-                                const color = active ? '#5b5bff' : (isDark ? '#fafafa' : '#000000');
-                                el.style.setProperty('color', color, 'important');
-                                el.style.setProperty('opacity', '1', 'important');
-                                el.style.setProperty('visibility', 'visible', 'important');
-                                const computed = window.getComputedStyle(el);
-                                // #region agent log
-                                const logData = {location:'mobile-sidebar.tsx:185',message:'Span computed styles',data:{label:item.label,active,isDark,inlineColor:color,computedColor:computed.color,computedOpacity:computed.opacity,computedVisibility:computed.visibility,computedDisplay:computed.display,zIndex:computed.zIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,C,D,E'};
-                                console.log('[DEBUG] Mobile Sidebar Text Styles:', logData);
-                                fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch(()=>{});
-                                // #endregion
+                                // Force style application for Windows - use setTimeout to ensure DOM is ready
+                                setTimeout(() => {
+                                  const color = active ? '#5b5bff' : (isDark ? '#fafafa' : '#000000');
+                                  // Multiple attempts to force the color
+                                  el.style.color = color;
+                                  el.style.setProperty('color', color, 'important');
+                                  el.style.setProperty('opacity', '1', 'important');
+                                  el.style.setProperty('visibility', 'visible', 'important');
+                                  el.style.setProperty('display', 'inline-block', 'important');
+                                  el.style.setProperty('-webkit-font-smoothing', 'antialiased', 'important');
+                                  el.style.setProperty('-moz-osx-font-smoothing', 'grayscale', 'important');
+                                  
+                                  // Also try setting on parent if needed
+                                  const parent = el.parentElement;
+                                  if (parent) {
+                                    parent.style.setProperty('color', color, 'important');
+                                  }
+                                  
+                                  const computed = window.getComputedStyle(el);
+                                  // #region agent log
+                                  const logData = {location:'mobile-sidebar.tsx:185',message:'Span computed styles after fix',data:{label:item.label,active,isDark,inlineColor:color,computedColor:computed.color,computedOpacity:computed.opacity,computedVisibility:computed.visibility,computedDisplay:computed.display,zIndex:computed.zIndex,backgroundColor:computed.backgroundColor,parentColor:parent?window.getComputedStyle(parent).color:'none'},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A,C,D,E'};
+                                  console.log('[DEBUG] Mobile Sidebar Text Styles (after fix):', logData);
+                                  fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch(()=>{});
+                                  // #endregion
+                                }, 0);
                               }
                             }}
                           >
