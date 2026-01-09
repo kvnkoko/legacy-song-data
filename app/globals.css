@@ -235,50 +235,53 @@
   .dashboard-sidebar,
   .mobile-sidebar {
     /* Ensure solid background on Windows - no transparency issues */
-    background-color: hsl(var(--card));
+    background-color: hsl(var(--card)) !important;
   }
   
   /* Ensure sidebar navigation text is always visible on Windows */
   /* Use explicit class selector for better Windows compatibility */
-  .sidebar-nav-text {
+  /* Use !important to override Tailwind classes that may not render on Windows */
+  .dashboard-sidebar nav a span.sidebar-nav-text,
+  .mobile-sidebar nav a span.sidebar-nav-text {
     /* Fallback for Windows browsers that don't support CSS custom properties well */
-    color: #000000;
-    color: hsl(var(--foreground));
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    text-rendering: optimizeLegibility;
+    color: #000000 !important;
+    color: hsl(var(--foreground)) !important;
+    -webkit-font-smoothing: antialiased !important;
+    -moz-osx-font-smoothing: grayscale !important;
+    text-rendering: optimizeLegibility !important;
   }
   
-  .dark .sidebar-nav-text {
-    color: #fafafa;
-    color: hsl(var(--foreground));
+  .dark .dashboard-sidebar nav a span.sidebar-nav-text,
+  .dark .mobile-sidebar nav a span.sidebar-nav-text {
+    color: #fafafa !important;
+    color: hsl(var(--foreground)) !important;
   }
   
-  /* Active state text color */
-  .dashboard-sidebar nav a.text-primary .sidebar-nav-text,
-  .mobile-sidebar nav a.text-primary .sidebar-nav-text {
-    color: #5b5bff;
-    color: hsl(var(--primary));
+  /* Active state text color - override Tailwind classes */
+  .dashboard-sidebar nav a.text-primary span.sidebar-nav-text,
+  .mobile-sidebar nav a.text-primary span.sidebar-nav-text {
+    color: #5b5bff !important;
+    color: hsl(var(--primary)) !important;
   }
   
-  /* Icon colors - ensure visibility */
+  /* Icon colors - ensure visibility with !important */
   .dashboard-sidebar nav a svg,
   .mobile-sidebar nav a svg {
-    color: #737373;
-    color: hsl(var(--muted-foreground));
+    color: #737373 !important;
+    color: hsl(var(--muted-foreground)) !important;
   }
   
   .dark .dashboard-sidebar nav a svg,
   .dark .mobile-sidebar nav a svg {
-    color: #a3a3a3;
-    color: hsl(var(--muted-foreground));
+    color: #a3a3a3 !important;
+    color: hsl(var(--muted-foreground)) !important;
   }
   
   /* Active state icon color */
   .dashboard-sidebar nav a.text-primary svg,
   .mobile-sidebar nav a.text-primary svg {
-    color: #5b5bff;
-    color: hsl(var(--primary));
+    color: #5b5bff !important;
+    color: hsl(var(--primary)) !important;
   }
   
   /* Enhanced Typography Scale - Premium feel */

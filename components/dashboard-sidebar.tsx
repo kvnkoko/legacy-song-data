@@ -139,10 +139,19 @@ export function DashboardSidebar({ userRole, userEmail }: SidebarProps) {
                       transition={{ type: "spring", stiffness: 500, damping: 30 }}
                     />
                   )}
-                  <Icon className={cn(
-                    "w-5 h-5 transition-colors flex-shrink-0",
-                    active ? "text-primary group-hover:!text-primary" : "text-muted-foreground group-hover:text-primary/80"
-                  )} />
+                  <Icon 
+                    className={cn(
+                      "w-5 h-5 transition-colors flex-shrink-0",
+                      active ? "text-primary group-hover:!text-primary" : "text-muted-foreground group-hover:text-primary/80"
+                    )}
+                    style={{
+                      color: active 
+                        ? '#5b5bff' 
+                        : isDark 
+                          ? '#a3a3a3' 
+                          : '#737373'
+                    }}
+                  />
                   <span 
                     className={cn(
                       "transition-colors font-medium text-base sidebar-nav-text",
@@ -150,6 +159,13 @@ export function DashboardSidebar({ userRole, userEmail }: SidebarProps) {
                         ? "text-primary group-hover:!text-primary font-semibold" 
                         : "text-foreground group-hover:text-primary/80"
                     )}
+                    style={{
+                      color: active 
+                        ? '#5b5bff' 
+                        : isDark 
+                          ? '#fafafa' 
+                          : '#000000'
+                    }}
                   >
                     {item.label}
                   </span>
