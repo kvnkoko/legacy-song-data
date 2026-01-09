@@ -189,62 +189,33 @@ export function DashboardSidebar({ userRole, userEmail }: SidebarProps) {
                           : '#737373'
                     }}
                   />
+                  {/* Render text directly without span wrapper to avoid CSS inheritance issues */}
                   <span 
-                    className="sidebar-nav-text"
-                    style={{
-                      color: active 
-                        ? '#5b5bff' 
-                        : isDark 
-                          ? '#fafafa' 
-                          : '#000000',
-                      opacity: 1,
-                      visibility: 'visible',
-                      display: 'inline-block',
-                      WebkitFontSmoothing: 'antialiased',
-                      MozOsxFontSmoothing: 'grayscale',
-                      textRendering: 'optimizeLegibility',
-                      zIndex: 9999,
-                      position: 'relative',
-                      fontWeight: 500,
-                      fontSize: '1rem',
-                      lineHeight: '1.5',
-                      // Force all properties that could hide text
-                      textShadow: 'none',
-                      clip: 'auto',
-                      clipPath: 'none',
-                      transform: 'none',
-                      filter: 'none',
-                      mixBlendMode: 'normal',
-                      // Use system font as fallback in case custom font fails
-                      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                      // Ensure text is actually rendered
-                      whiteSpace: 'nowrap',
-                      textIndent: 0,
-                      letterSpacing: 'normal'
-                    }}
                     ref={(el) => {
                       if (el) {
-                        // Force style application for Windows - use requestAnimationFrame for better timing
-                        requestAnimationFrame(() => {
+                        // Force style application immediately and repeatedly
+                        const applyStyles = () => {
                           const color = active ? '#5b5bff' : (isDark ? '#fafafa' : '#000000');
                           
-                          // Remove all conflicting classes that might override
-                          el.className = 'sidebar-nav-text';
+                          // Completely replace all styles
+                          el.className = '';
+                          el.removeAttribute('class');
                           
-                          // Direct style assignment (highest priority) - include ALL properties
+                          // Use cssText to override everything
                           el.style.cssText = `
                             color: ${color} !important;
                             opacity: 1 !important;
                             visibility: visible !important;
                             display: inline-block !important;
+                            position: relative !important;
+                            z-index: 99999 !important;
+                            font-weight: 500 !important;
+                            font-size: 16px !important;
+                            line-height: 1.5 !important;
+                            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
                             -webkit-font-smoothing: antialiased !important;
                             -moz-osx-font-smoothing: grayscale !important;
                             text-rendering: optimizeLegibility !important;
-                            z-index: 9999 !important;
-                            position: relative !important;
-                            font-weight: 500 !important;
-                            font-size: 1rem !important;
-                            line-height: 1.5 !important;
                             text-shadow: none !important;
                             clip: auto !important;
                             clip-path: none !important;
@@ -252,85 +223,69 @@ export function DashboardSidebar({ userRole, userEmail }: SidebarProps) {
                             filter: none !important;
                             mix-blend-mode: normal !important;
                             overflow: visible !important;
-                            text-overflow: clip !important;
                             white-space: nowrap !important;
-                            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
                             text-indent: 0 !important;
                             letter-spacing: normal !important;
+                            margin: 0 !important;
+                            padding: 0 !important;
+                            border: none !important;
+                            background: transparent !important;
                           `;
                           
-                          // Also set via setProperty as backup
+                          // Also set individually as backup
                           el.style.setProperty('color', color, 'important');
                           el.style.setProperty('opacity', '1', 'important');
                           el.style.setProperty('visibility', 'visible', 'important');
-                          el.style.setProperty('text-shadow', 'none', 'important');
-                          el.style.setProperty('clip', 'auto', 'important');
-                          el.style.setProperty('clip-path', 'none', 'important');
-                          el.style.setProperty('transform', 'none', 'important');
                           
-                          // Check parent and remove any conflicting styles
-                          const parent = el.parentElement;
-                          if (parent) {
-                            const parentComputed = window.getComputedStyle(parent);
-                            // If parent has a color that might interfere, override it
-                            if (parentComputed.color && parentComputed.color !== color) {
-                              parent.style.setProperty('color', color, 'important');
-                            }
-                            // Also ensure parent doesn't have properties that hide children
-                            parent.style.setProperty('overflow', 'visible', 'important');
-                            parent.style.setProperty('clip', 'auto', 'important');
+                          // Force on parent link
+                          const link = el.closest('a');
+                          if (link) {
+                            link.style.setProperty('color', color, 'important');
+                            link.style.setProperty('text-decoration', 'none', 'important');
                           }
-                          
+                        };
+                        
+                        // Apply immediately
+                        applyStyles();
+                        
+                        // Apply again after a frame
+                        requestAnimationFrame(() => {
+                          applyStyles();
+                          setTimeout(applyStyles, 100);
+                        });
+                        
+                        // Log for debugging
+                        requestAnimationFrame(() => {
                           const computed = window.getComputedStyle(el);
-                          const parentComputed = parent ? window.getComputedStyle(parent) : null;
-                          const linkElement = el.closest('a');
-                          const linkComputed = linkElement ? window.getComputedStyle(linkElement) : null;
-                          
-                          // Check if element is actually visible and has dimensions
                           const rect = el.getBoundingClientRect();
-                          const hasText = el.textContent && el.textContent.trim().length > 0;
-                          
+                          const color = active ? '#5b5bff' : (isDark ? '#fafafa' : '#000000');
                           // #region agent log
                           const logData = {
-                            location:'dashboard-sidebar.tsx:162',
-                            message:'Comprehensive span analysis after all fixes',
+                            location:'dashboard-sidebar.tsx:192',
+                            message:'Direct text rendering analysis',
                             data:{
                               label:item.label,
                               active,
                               isDark,
-                              inlineColor:color,
+                              targetColor:color,
                               computedColor:computed.color,
                               computedOpacity:computed.opacity,
                               computedVisibility:computed.visibility,
-                              computedDisplay:computed.display,
-                              zIndex:computed.zIndex,
-                              backgroundColor:computed.backgroundColor,
-                              parentColor:parentComputed?.color || 'none',
-                              linkColor:linkComputed?.color || 'none',
-                              linkBackground:linkComputed?.backgroundColor || 'none',
-                              fontSize:computed.fontSize,
-                              fontWeight:computed.fontWeight,
                               width:rect.width,
                               height:rect.height,
-                              hasText,
-                              textContent:el.textContent?.substring(0,20),
                               offsetWidth:el.offsetWidth,
                               offsetHeight:el.offsetHeight,
-                              clientWidth:el.clientWidth,
-                              clientHeight:el.clientHeight,
-                              transform:computed.transform,
-                              clipPath:computed.clipPath,
-                              overflow:computed.overflow,
-                              textShadow:computed.textShadow,
-                              mixBlendMode:computed.mixBlendMode,
-                              filter:computed.filter
+                              hasText:!!el.textContent,
+                              textLength:el.textContent?.length || 0,
+                              fontSize:computed.fontSize,
+                              fontFamily:computed.fontFamily
                             },
                             timestamp:Date.now(),
                             sessionId:'debug-session',
-                            runId:'run5',
-                            hypothesisId:'A,C,D,E,F,G'
+                            runId:'run6',
+                            hypothesisId:'H'
                           };
-                          console.log('[DEBUG] Final Comprehensive Analysis:', logData);
+                          console.log('[DEBUG] Direct Text Analysis:', logData);
                           fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch(()=>{});
                           // #endregion
                         });
