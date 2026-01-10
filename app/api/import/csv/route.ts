@@ -50,11 +50,67 @@ export async function processRow(
   try {
     submission = extractSubmissionData(row, mappings)
     
+    // #region agent log - Debug extraction
+    const releaseTitleMapping = mappings.find(m => m.targetField === 'releaseTitle' && m.fieldType === 'submission')
+    const logDataExtraction = {
+      location: 'app/api/import/csv/route.ts:51',
+      message: 'Submission data extracted',
+      data: {
+        rowIndex,
+        hasReleaseTitle: !!submission.releaseTitle,
+        releaseTitle: submission.releaseTitle?.substring(0, 50) || 'MISSING',
+        hasArtistName: !!submission.artistName,
+        artistName: submission.artistName?.substring(0, 50) || 'MISSING',
+        releaseTitleMapping: releaseTitleMapping ? {
+          csvColumn: releaseTitleMapping.csvColumn,
+          targetField: releaseTitleMapping.targetField,
+          fieldType: releaseTitleMapping.fieldType,
+        } : 'NOT FOUND',
+        rowKeys: Object.keys(row).slice(0, 10),
+        rowSample: Object.fromEntries(Object.entries(row).slice(0, 5)),
+      },
+      timestamp: Date.now(),
+      sessionId: 'debug-session',
+      runId: 'run1',
+      hypothesisId: 'L',
+    };
+    console.log('[DEBUG] Extraction:', logDataExtraction);
+    fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataExtraction) }).catch(() => {});
+    // #endregion
+    
     // Validate required fields
     if (!submission.releaseTitle || !submission.releaseTitle.trim()) {
+      // #region agent log - Debug missing releaseTitle
+      const logDataMissingTitle = {
+        location: 'app/api/import/csv/route.ts:75',
+        message: 'Missing releaseTitle - validation failed',
+        data: {
+          rowIndex,
+          submissionKeys: Object.keys(submission),
+          releaseTitleMapping: releaseTitleMapping ? {
+            csvColumn: releaseTitleMapping.csvColumn,
+            targetField: releaseTitleMapping.targetField,
+            fieldType: releaseTitleMapping.fieldType,
+            csvColumnInRow: releaseTitleMapping.csvColumn in row,
+            rowValue: row[releaseTitleMapping.csvColumn]?.substring(0, 50) || 'NOT IN ROW',
+          } : 'MAPPING NOT FOUND',
+          allMappings: mappings.filter(m => m.fieldType === 'submission').map(m => ({
+            csvColumn: m.csvColumn,
+            targetField: m.targetField,
+          })),
+        },
+        timestamp: Date.now(),
+        sessionId: 'debug-session',
+        runId: 'run1',
+        hypothesisId: 'L',
+      };
+      console.error('[DEBUG] Missing Title:', logDataMissingTitle);
+      fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataMissingTitle) }).catch(() => {});
+      // #endregion
+      
       return {
         success: false,
-        error: `Missing required field: releaseTitle. Row has artistName: ${submission.artistName ? 'yes' : 'no'}`,
+        error: `Missing required field: releaseTitle. Row has artistName: ${submission.artistName ? 'yes' : 'no'}. Check column mapping for 'releaseTitle'.`,
       }
     }
     
