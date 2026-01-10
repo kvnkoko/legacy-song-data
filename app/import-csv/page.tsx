@@ -462,19 +462,83 @@ export default function ImportCSVPage() {
         setPollingActive(true)
         pollingActiveRef.current = true
         
+        // #region agent log
+        const logDataFrontend1 = {
+          location: 'app/import-csv/page.tsx:461',
+          message: 'Frontend: Starting batch processing',
+          data: {
+            sessionId: result.sessionId,
+            totalRows: result.totalRows,
+            rowsProcessed: result.rowsProcessed || 0,
+            needsMore: result.needsMore,
+          },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          runId: 'run1',
+          hypothesisId: 'B',
+        };
+        console.log('[DEBUG] Frontend Start:', logDataFrontend1);
+        fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataFrontend1) }).catch(() => {});
+        // #endregion
+        
         const processNextBatch = async () => {
           // Check if processing should continue
           if (!pollingActiveRef.current) {
+            // #region agent log
+            const logDataFrontend2 = {
+              location: 'app/import-csv/page.tsx:467',
+              message: 'Frontend: Batch processing stopped (polling inactive)',
+              data: { sessionId: result.sessionId },
+              timestamp: Date.now(),
+              sessionId: 'debug-session',
+              runId: 'run1',
+              hypothesisId: 'B',
+            };
+            console.log('[DEBUG] Frontend Stopped:', logDataFrontend2);
+            fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataFrontend2) }).catch(() => {});
+            // #endregion
             return
           }
           
           try {
+            // #region agent log
+            const logDataFrontend3 = {
+              location: 'app/import-csv/page.tsx:472',
+              message: 'Frontend: Calling batch processor',
+              data: { sessionId: result.sessionId },
+              timestamp: Date.now(),
+              sessionId: 'debug-session',
+              runId: 'run1',
+              hypothesisId: 'B',
+            };
+            console.log('[DEBUG] Frontend Calling Batch:', logDataFrontend3);
+            fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataFrontend3) }).catch(() => {});
+            // #endregion
+            
             // Call batch processor endpoint
             const batchResponse = await fetch('/api/import/csv/process-batch', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ sessionId: result.sessionId }),
             })
+            
+            // #region agent log
+            const logDataFrontend4 = {
+              location: 'app/import-csv/page.tsx:479',
+              message: 'Frontend: Batch processor response received',
+              data: {
+                sessionId: result.sessionId,
+                ok: batchResponse.ok,
+                status: batchResponse.status,
+              },
+              timestamp: Date.now(),
+              sessionId: 'debug-session',
+              runId: 'run1',
+              hypothesisId: 'B',
+            };
+            console.log('[DEBUG] Frontend Batch Response:', logDataFrontend4);
+            fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataFrontend4) }).catch(() => {});
+            // #endregion
             
             if (!batchResponse.ok) {
               // If batch endpoint fails, check progress and retry

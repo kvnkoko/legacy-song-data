@@ -786,76 +786,232 @@ export async function POST(req: NextRequest) {
     const BATCH_SIZE = 20
     const firstBatch = rows.slice(0, Math.min(BATCH_SIZE, rows.length))
     
+    // #region agent log
+    const logData1 = {
+      location: 'app/api/import/csv/route.ts:787',
+      message: 'Starting first batch processing',
+      data: {
+        totalRows: rows.length,
+        firstBatchSize: firstBatch.length,
+        sessionId: importSession.id,
+        hasRows: rows.length > 0,
+      },
+      timestamp: Date.now(),
+      sessionId: 'debug-session',
+      runId: 'run1',
+      hypothesisId: 'A',
+    };
+    console.log('[DEBUG] Import Start:', logData1);
+    fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logData1) }).catch(() => {});
+    // #endregion
+    
+    let rowsProcessedInFirstBatch = 0
+    
     if (firstBatch.length > 0) {
-      // Process first batch immediately (within the request)
-      const mappings = mappingConfig.columns
-      const errors: Array<{ row: number; message: string }> = []
-      let submissionsCreated = 0
-      let submissionsUpdated = 0
-      let songsCreated = 0
-      let rowsSkipped = 0
+      try {
+        // Process first batch immediately (within the request)
+        const mappings = mappingConfig.columns
+        const errors: Array<{ row: number; message: string }> = []
+        let submissionsCreated = 0
+        let submissionsUpdated = 0
+        let songsCreated = 0
+        let rowsSkipped = 0
 
-      const artistCache = new Map<string, { id: string; name: string }>()
-      const employeeCache = new Map<string, string>()
-      const channelCache = new Map<string, { id: string; name: string; platform: string }>()
-      const caches = { artistCache, employeeCache, channelCache }
+        const artistCache = new Map<string, { id: string; name: string }>()
+        const employeeCache = new Map<string, string>()
+        const channelCache = new Map<string, { id: string; name: string; platform: string }>()
+        const caches = { artistCache, employeeCache, channelCache }
 
-      for (let i = 0; i < firstBatch.length; i++) {
-        const row = firstBatch[i]
-        try {
-          await prisma.$transaction(async (tx) => {
-            const result = await processRow(row, i, mappings, tx, caches)
-            if (result.success) {
-              if (result.releaseCreated) submissionsCreated++
-              if (result.releaseUpdated) submissionsUpdated++
-              if (result.tracksCreated) songsCreated += result.tracksCreated
-            } else {
-              errors.push({ row: i + 1, message: result.error || 'Unknown error' })
-              rowsSkipped++
-            }
-          }, { timeout: 30000, maxWait: 5000 })
-        } catch (error: any) {
-          errors.push({ row: i + 1, message: `Transaction failed: ${error.message || 'Unknown error'}` })
-          rowsSkipped++
+        // #region agent log
+        const logData2 = {
+          location: 'app/api/import/csv/route.ts:803',
+          message: 'Processing first batch rows',
+          data: {
+            batchSize: firstBatch.length,
+            sessionId: importSession.id,
+          },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          runId: 'run1',
+          hypothesisId: 'A',
+        };
+        console.log('[DEBUG] Processing Batch:', logData2);
+        fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logData2) }).catch(() => {});
+        // #endregion
+
+        for (let i = 0; i < firstBatch.length; i++) {
+          const row = firstBatch[i]
+          try {
+            await prisma.$transaction(async (tx) => {
+              const result = await processRow(row, i, mappings, tx, caches)
+              if (result.success) {
+                if (result.releaseCreated) submissionsCreated++
+                if (result.releaseUpdated) submissionsUpdated++
+                if (result.tracksCreated) songsCreated += result.tracksCreated
+                rowsProcessedInFirstBatch++
+              } else {
+                errors.push({ row: i + 1, message: result.error || 'Unknown error' })
+                rowsSkipped++
+              }
+            }, { timeout: 30000, maxWait: 5000 })
+          } catch (error: any) {
+            // #region agent log
+            const logData3 = {
+              location: 'app/api/import/csv/route.ts:817',
+              message: 'Row processing error',
+              data: {
+                rowIndex: i + 1,
+                error: error.message || 'Unknown error',
+                sessionId: importSession.id,
+              },
+              timestamp: Date.now(),
+              sessionId: 'debug-session',
+              runId: 'run1',
+              hypothesisId: 'A',
+            };
+            console.error('[DEBUG] Row Error:', logData3);
+            fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logData3) }).catch(() => {});
+            // #endregion
+            errors.push({ row: i + 1, message: `Transaction failed: ${error.message || 'Unknown error'}` })
+            rowsSkipped++
+          }
         }
-      }
 
-      // Update progress and stats
-      await updateImportSessionProgress(importSession.id, firstBatch.length)
-      
-      const updatedMappingConfig = {
-        ...mappingConfigWithRows,
-        _submissionsCreated: submissionsCreated,
-        _submissionsUpdated: submissionsUpdated,
-        _songsCreated: songsCreated,
-        _rowsSkipped: rowsSkipped,
-        _failedRows: errors,
-      }
+        // #region agent log
+        const logData4 = {
+          location: 'app/api/import/csv/route.ts:824',
+          message: 'First batch processing complete',
+          data: {
+            rowsProcessed: rowsProcessedInFirstBatch,
+            submissionsCreated,
+            submissionsUpdated,
+            songsCreated,
+            rowsSkipped,
+            errorCount: errors.length,
+            sessionId: importSession.id,
+          },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          runId: 'run1',
+          hypothesisId: 'A',
+        };
+        console.log('[DEBUG] Batch Complete:', logData4);
+        fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logData4) }).catch(() => {});
+        // #endregion
 
-      await prisma.importSession.update({
-        where: { id: importSession.id },
-        data: { mappingConfig: updatedMappingConfig },
-      })
+        // Update progress and stats
+        try {
+          await updateImportSessionProgress(importSession.id, rowsProcessedInFirstBatch)
+          
+          const updatedMappingConfig = {
+            ...mappingConfigWithRows,
+            _submissionsCreated: submissionsCreated,
+            _submissionsUpdated: submissionsUpdated,
+            _songsCreated: songsCreated,
+            _rowsSkipped: rowsSkipped,
+            _failedRows: errors,
+          }
 
-      // If all rows processed in first batch, complete the session
-      if (firstBatch.length >= rows.length) {
-        await completeImportSession(importSession.id, {
-          submissionsCreated,
-          submissionsUpdated,
-          songsCreated,
-          rowsSkipped,
-          errors: errors.length > 0 ? errors : undefined,
-        })
+          await prisma.importSession.update({
+            where: { id: importSession.id },
+            data: { mappingConfig: updatedMappingConfig },
+          })
+
+          // #region agent log
+          const logData5 = {
+            location: 'app/api/import/csv/route.ts:835',
+            message: 'Progress updated in database',
+            data: {
+              rowsProcessed: rowsProcessedInFirstBatch,
+              sessionId: importSession.id,
+            },
+            timestamp: Date.now(),
+            sessionId: 'debug-session',
+            runId: 'run1',
+            hypothesisId: 'D',
+          };
+          console.log('[DEBUG] Progress Updated:', logData5);
+          fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logData5) }).catch(() => {});
+          // #endregion
+        } catch (progressError: any) {
+          // #region agent log
+          const logData6 = {
+            location: 'app/api/import/csv/route.ts:838',
+            message: 'Progress update failed',
+            data: {
+              error: progressError.message || 'Unknown error',
+              sessionId: importSession.id,
+            },
+            timestamp: Date.now(),
+            sessionId: 'debug-session',
+            runId: 'run1',
+            hypothesisId: 'D',
+          };
+          console.error('[DEBUG] Progress Update Error:', logData6);
+          fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logData6) }).catch(() => {});
+          // #endregion
+          throw progressError
+        }
+
+        // If all rows processed in first batch, complete the session
+        if (firstBatch.length >= rows.length) {
+          await completeImportSession(importSession.id, {
+            submissionsCreated,
+            submissionsUpdated,
+            songsCreated,
+            rowsSkipped,
+            errors: errors.length > 0 ? errors : undefined,
+          })
+        }
+      } catch (batchError: any) {
+        // #region agent log
+        const logData7 = {
+          location: 'app/api/import/csv/route.ts:850',
+          message: 'First batch processing failed',
+          data: {
+            error: batchError.message || 'Unknown error',
+            stack: batchError.stack,
+            sessionId: importSession.id,
+          },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          runId: 'run1',
+          hypothesisId: 'A',
+        };
+        console.error('[DEBUG] Batch Processing Failed:', logData7);
+        fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logData7) }).catch(() => {});
+        // #endregion
+        // Don't fail the entire import - let batch processor handle it
+        console.error('First batch processing error (will retry via batch processor):', batchError)
       }
     }
+    
+    // #region agent log
+    const logData8 = {
+      location: 'app/api/import/csv/route.ts:852',
+      message: 'Returning import start response',
+      data: {
+        sessionId: importSession.id,
+        totalRows: rows.length,
+        rowsProcessed: rowsProcessedInFirstBatch,
+        needsMore: rowsProcessedInFirstBatch < rows.length,
+      },
+      timestamp: Date.now(),
+      sessionId: 'debug-session',
+      runId: 'run1',
+      hypothesisId: 'B',
+    };
+    console.log('[DEBUG] Import Response:', logData8);
+    fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logData8) }).catch(() => {});
+    // #endregion
     
     return NextResponse.json({
       success: true,
       sessionId: importSession.id,
       totalRows: rows.length,
-      rowsProcessed: firstBatch.length,
+      rowsProcessed: rowsProcessedInFirstBatch,
       message: 'Import started',
-      needsMore: firstBatch.length < rows.length,
+      needsMore: rowsProcessedInFirstBatch < rows.length,
     })
               } catch (error: any) {
     console.error('CSV import error:', error)

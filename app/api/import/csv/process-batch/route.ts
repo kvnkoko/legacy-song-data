@@ -22,6 +22,23 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     sessionId = body.sessionId
 
+    // #region agent log
+    const logData1 = {
+      location: 'app/api/import/csv/process-batch/route.ts:13',
+      message: 'Batch processor called',
+      data: {
+        sessionId: sessionId || 'missing',
+        hasSessionId: !!sessionId,
+      },
+      timestamp: Date.now(),
+      sessionId: 'debug-session',
+      runId: 'run1',
+      hypothesisId: 'C',
+    };
+    console.log('[DEBUG] Batch Processor Called:', logData1);
+    fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logData1) }).catch(() => {});
+    // #endregion
+
     if (!sessionId) {
       return NextResponse.json({ error: 'sessionId required' }, { status: 400 })
     }
@@ -60,10 +77,46 @@ export async function POST(req: NextRequest) {
       })
     }
 
+    // #region agent log
+    const logData2 = {
+      location: 'app/api/import/csv/process-batch/route.ts:50',
+      message: 'Starting batch processing',
+      data: {
+        sessionId,
+        currentStatus: importSession.status,
+        rowsProcessed: importSession.rowsProcessed,
+        totalRows: importSession.totalRows,
+      },
+      timestamp: Date.now(),
+      sessionId: 'debug-session',
+      runId: 'run1',
+      hypothesisId: 'C',
+    };
+    console.log('[DEBUG] Batch Start:', logData2);
+    fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logData2) }).catch(() => {});
+    // #endregion
+
     // Get CSV rows from mappingConfig
     const mappingConfig = importSession.mappingConfig as MappingConfig & { _csvRows?: ParsedRow[] }
     
     if (!mappingConfig._csvRows) {
+      // #region agent log
+      const logData3 = {
+        location: 'app/api/import/csv/process-batch/route.ts:60',
+        message: 'CSV rows not found in session',
+        data: {
+          sessionId,
+          hasMappingConfig: !!mappingConfig,
+          mappingConfigKeys: mappingConfig ? Object.keys(mappingConfig) : [],
+        },
+        timestamp: Date.now(),
+        sessionId: 'debug-session',
+        runId: 'run1',
+        hypothesisId: 'C',
+      };
+      console.error('[DEBUG] Missing CSV Rows:', logData3);
+      fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logData3) }).catch(() => {});
+      // #endregion
       return NextResponse.json({ error: 'CSV rows not found in session' }, { status: 400 })
     }
 
@@ -71,6 +124,26 @@ export async function POST(req: NextRequest) {
     const startFromRow = importSession.rowsProcessed
     const endRow = Math.min(startFromRow + BATCH_SIZE, rows.length)
     const batchRows = rows.slice(startFromRow, endRow)
+
+    // #region agent log
+    const logData4 = {
+      location: 'app/api/import/csv/process-batch/route.ts:70',
+      message: 'Batch rows prepared',
+      data: {
+        sessionId,
+        startFromRow,
+        endRow,
+        batchSize: batchRows.length,
+        totalRows: rows.length,
+      },
+      timestamp: Date.now(),
+      sessionId: 'debug-session',
+      runId: 'run1',
+      hypothesisId: 'C',
+    };
+    console.log('[DEBUG] Batch Prepared:', logData4);
+    fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logData4) }).catch(() => {});
+    // #endregion
 
     if (batchRows.length === 0) {
       // All rows processed
