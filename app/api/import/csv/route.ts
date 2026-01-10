@@ -920,75 +920,158 @@ export async function POST(req: NextRequest) {
       throw new Error(`Failed to create import session: ${createError.message}. This might be due to CSV size limits.`)
     }
     
-    // For Vercel free tier: Don't process first batch in the request
-    // Instead, return immediately and let the frontend call batch processor
-    // This prevents timeouts and ensures we stay within the 10-second limit
-    // The batch processor will handle all rows, starting from row 0
+    // Process first small batch synchronously (like it used to work)
+    // Only skip for Vercel if we detect we're on Vercel (VERCEL env var)
+    // For localhost, process first batch to show immediate progress
+    const isVercel = process.env.VERCEL === '1'
+    const FIRST_BATCH_SIZE = 3 // Small batch to process synchronously for immediate feedback
     
-    // #region agent log
-    const logData1 = {
-      location: 'app/api/import/csv/route.ts:787',
-      message: 'Skipping first batch processing for Vercel compatibility',
-      data: {
-        totalRows: rows.length,
-        sessionId: importSession.id,
-        hasRows: rows.length > 0,
-        strategy: 'batch-processor-only',
-      },
-      timestamp: Date.now(),
-      sessionId: 'debug-session',
-      runId: 'run2',
-      hypothesisId: 'E',
-    };
-    console.log('[DEBUG] Import Start (No First Batch):', logData1);
-    fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logData1) }).catch(() => {});
-    // #endregion
+    let rowsProcessedInFirstBatch = 0
     
-    // Initialize progress to 0 (batch processor will start from row 0)
-    const rowsProcessedInFirstBatch = 0
-    
-    // Ensure progress is set to 0 in database
-    try {
-      await updateImportSessionProgress(importSession.id, 0)
+    if (!isVercel && rows.length > 0) {
+      // Process first small batch synchronously on localhost
+      const firstBatch = rows.slice(0, Math.min(FIRST_BATCH_SIZE, rows.length))
+      
       // #region agent log
-      const logDataInit = {
-        location: 'app/api/import/csv/route.ts:800',
-        message: 'Initialized progress to 0',
+      const logData1 = {
+        location: 'app/api/import/csv/route.ts:920',
+        message: 'Processing first batch synchronously (localhost)',
         data: {
-          sessionId: importSession.id,
           totalRows: rows.length,
-        },
-        timestamp: Date.now(),
-        sessionId: 'debug-session',
-        runId: 'run2',
-        hypothesisId: 'D',
-      };
-      console.log('[DEBUG] Progress Initialized:', logDataInit);
-      fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataInit) }).catch(() => {});
-      // #endregion
-    } catch (progressError: any) {
-      // #region agent log
-      const logDataInitError = {
-        location: 'app/api/import/csv/route.ts:810',
-        message: 'Failed to initialize progress',
-        data: {
+          firstBatchSize: firstBatch.length,
           sessionId: importSession.id,
-          error: progressError.message || 'Unknown error',
+          strategy: 'sync-first-batch',
         },
         timestamp: Date.now(),
         sessionId: 'debug-session',
-        runId: 'run2',
-        hypothesisId: 'D',
+        runId: 'run1',
+        hypothesisId: 'K',
       };
-      console.error('[DEBUG] Progress Init Error:', logDataInitError);
-      fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataInitError) }).catch(() => {});
+      console.log('[DEBUG] Processing First Batch:', logData1);
+      fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logData1) }).catch(() => {});
       // #endregion
-      console.error('Failed to initialize progress:', progressError)
+      
+      try {
+        const mappings = mappingConfigWithRows.columns
+        const errors: Array<{ row: number; message: string }> = []
+        let submissionsCreated = 0
+        let submissionsUpdated = 0
+        let songsCreated = 0
+        let rowsSkipped = 0
+
+        const artistCache = new Map<string, { id: string; name: string }>()
+        const employeeCache = new Map<string, string>()
+        const channelCache = new Map<string, { id: string; name: string; platform: string }>()
+        const caches = { artistCache, employeeCache, channelCache }
+
+        for (let i = 0; i < firstBatch.length; i++) {
+          const row = firstBatch[i]
+          rowsProcessedInFirstBatch++
+          
+          try {
+            await prisma.$transaction(async (tx) => {
+              const result = await processRow(row, i, mappings, tx, caches)
+              if (result.success) {
+                if (result.releaseCreated) submissionsCreated++
+                if (result.releaseUpdated) submissionsUpdated++
+                if (result.tracksCreated) songsCreated += result.tracksCreated
+              } else {
+                errors.push({ row: i + 1, message: result.error || 'Unknown error' })
+                rowsSkipped++
+              }
+            }, { timeout: 30000, maxWait: 5000 })
+          } catch (error: any) {
+            errors.push({ row: i + 1, message: `Transaction failed: ${error.message || 'Unknown error'}` })
+            rowsSkipped++
+          }
+        }
+
+        // Update progress and stats
+        await updateImportSessionProgress(importSession.id, rowsProcessedInFirstBatch)
+        
+        const updatedMappingConfig = {
+          ...mappingConfigWithRows,
+          _submissionsCreated: submissionsCreated,
+          _submissionsUpdated: submissionsUpdated,
+          _songsCreated: songsCreated,
+          _rowsSkipped: rowsSkipped,
+          _failedRows: errors,
+        }
+
+        await prisma.importSession.update({
+          where: { id: importSession.id },
+          data: { mappingConfig: updatedMappingConfig },
+        })
+
+        // #region agent log
+        const logDataFirstBatchComplete = {
+          location: 'app/api/import/csv/route.ts:980',
+          message: 'First batch processed successfully',
+          data: {
+            sessionId: importSession.id,
+            rowsProcessed: rowsProcessedInFirstBatch,
+            submissionsCreated,
+            submissionsUpdated,
+            songsCreated,
+          },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          runId: 'run1',
+          hypothesisId: 'K',
+        };
+        console.log('[DEBUG] First Batch Complete:', logDataFirstBatchComplete);
+        fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataFirstBatchComplete) }).catch(() => {});
+        // #endregion
+      } catch (batchError: any) {
+        // #region agent log
+        const logDataFirstBatchError = {
+          location: 'app/api/import/csv/route.ts:995',
+          message: 'First batch processing failed',
+          data: {
+            sessionId: importSession.id,
+            error: batchError.message || 'Unknown error',
+          },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          runId: 'run1',
+          hypothesisId: 'K',
+        };
+        console.error('[DEBUG] First Batch Error:', logDataFirstBatchError);
+        fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataFirstBatchError) }).catch(() => {});
+        // #endregion
+        // Continue anyway - batch processor will handle remaining rows
+        console.error('First batch processing error (batch processor will continue):', batchError)
+      }
+    } else if (isVercel) {
+      // Skip first batch on Vercel (for free tier compatibility)
+      // #region agent log
+      const logData1 = {
+        location: 'app/api/import/csv/route.ts:1010',
+        message: 'Skipping first batch processing (Vercel)',
+        data: {
+          totalRows: rows.length,
+          sessionId: importSession.id,
+          strategy: 'batch-processor-only',
+        },
+        timestamp: Date.now(),
+        sessionId: 'debug-session',
+        runId: 'run1',
+        hypothesisId: 'K',
+      };
+      console.log('[DEBUG] Skipping First Batch (Vercel):', logData1);
+      fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logData1) }).catch(() => {});
+      // #endregion
+      
+      // Ensure progress is set to 0 in database
+      try {
+        await updateImportSessionProgress(importSession.id, 0)
+      } catch (progressError: any) {
+        console.error('Failed to initialize progress:', progressError)
+      }
     }
     
-    // Calculate needsMore - always true if there are rows to process
-    // Since we're skipping first batch, batch processor will handle all rows
-    const needsMore = rows.length > 0
+    // Calculate needsMore - true if there are more rows to process after first batch
+    const needsMore = rows.length > rowsProcessedInFirstBatch
     
     // #region agent log
     const logData8 = {
