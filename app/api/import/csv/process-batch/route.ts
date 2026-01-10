@@ -238,6 +238,21 @@ export async function POST(req: NextRequest) {
       _csvContent?: string
     }
     
+    // Validate mappingConfig structure
+    if (!mappingConfig || !mappingConfig.columns || !Array.isArray(mappingConfig.columns)) {
+      console.error('[IMPORT] ❌ CRITICAL ERROR: mappingConfig.columns is missing or invalid!')
+      console.error('[IMPORT] mappingConfig type:', typeof mappingConfig)
+      console.error('[IMPORT] mappingConfig keys:', mappingConfig ? Object.keys(mappingConfig) : 'null')
+      console.error('[IMPORT] mappingConfig.columns:', mappingConfig?.columns)
+      console.error('[IMPORT] Full mappingConfig:', JSON.stringify(mappingConfig, null, 2).substring(0, 1000))
+      return NextResponse.json({ 
+        error: 'Invalid mapping configuration',
+        details: 'The import session does not have valid column mappings. Please restart the import.',
+      }, { status: 400 })
+    }
+    
+    console.log(`[IMPORT] ✓ MappingConfig valid: ${mappingConfig.columns.length} column mappings found`)
+    
     let rows: ParsedRow[]
     
     if (mappingConfig._csvRows && mappingConfig._csvRows.length > 0) {
