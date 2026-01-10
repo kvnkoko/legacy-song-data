@@ -867,6 +867,7 @@ export async function POST(req: NextRequest) {
     // #endregion
     
     let rowsProcessedInFirstBatch = 0
+    let firstBatchFailed = false
     
     if (firstBatch.length > 0) {
       try {
@@ -1026,6 +1027,7 @@ export async function POST(req: NextRequest) {
           })
         }
         } catch (batchError: any) {
+          firstBatchFailed = true
           // #region agent log
           const logData7 = {
             location: 'app/api/import/csv/route.ts:850',
@@ -1035,6 +1037,7 @@ export async function POST(req: NextRequest) {
               stack: batchError.stack,
               sessionId: importSession.id,
               rowsProcessedInFirstBatch,
+              firstBatchLength: firstBatch.length,
             },
             timestamp: Date.now(),
             sessionId: 'debug-session',
@@ -1048,7 +1051,39 @@ export async function POST(req: NextRequest) {
           // Even if batch processing fails, try to update progress with what we have
           try {
             await updateImportSessionProgress(importSession.id, rowsProcessedInFirstBatch)
+            // #region agent log
+            const logDataProgressAfterError = {
+              location: 'app/api/import/csv/route.ts:920',
+              message: 'Progress updated after batch error',
+              data: {
+                sessionId: importSession.id,
+                rowsProcessed: rowsProcessedInFirstBatch,
+              },
+              timestamp: Date.now(),
+              sessionId: 'debug-session',
+              runId: 'run1',
+              hypothesisId: 'D',
+            };
+            console.log('[DEBUG] Progress After Error:', logDataProgressAfterError);
+            fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataProgressAfterError) }).catch(() => {});
+            // #endregion
           } catch (progressError: any) {
+            // #region agent log
+            const logDataProgressError = {
+              location: 'app/api/import/csv/route.ts:930',
+              message: 'Failed to update progress after batch error',
+              data: {
+                sessionId: importSession.id,
+                error: progressError.message || 'Unknown error',
+              },
+              timestamp: Date.now(),
+              sessionId: 'debug-session',
+              runId: 'run1',
+              hypothesisId: 'D',
+            };
+            console.error('[DEBUG] Progress Update Error:', logDataProgressError);
+            fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataProgressError) }).catch(() => {});
+            // #endregion
             console.error('Failed to update progress after batch error:', progressError)
           }
           
@@ -1058,17 +1093,67 @@ export async function POST(req: NextRequest) {
     } else {
       // No rows to process in first batch (shouldn't happen, but handle it)
       rowsProcessedInFirstBatch = 0
+      firstBatchFailed = true
     }
+    
+    // Ensure progress is updated even if first batch processing failed
+    // This is critical - the frontend relies on rowsProcessed to show progress
+    if (rowsProcessedInFirstBatch === 0 && rows.length > 0) {
+      // No rows were processed in first batch - update progress to 0 explicitly
+      try {
+        await updateImportSessionProgress(importSession.id, 0)
+        // #region agent log
+        const logDataZero = {
+          location: 'app/api/import/csv/route.ts:950',
+          message: 'First batch processed 0 rows - updated progress to 0',
+          data: {
+            sessionId: importSession.id,
+            totalRows: rows.length,
+          },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          runId: 'run1',
+          hypothesisId: 'D',
+        };
+        console.log('[DEBUG] Zero Progress Update:', logDataZero);
+        fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataZero) }).catch(() => {});
+        // #endregion
+      } catch (progressError: any) {
+        // #region agent log
+        const logDataZeroError = {
+          location: 'app/api/import/csv/route.ts:960',
+          message: 'Failed to update zero progress',
+          data: {
+            sessionId: importSession.id,
+            error: progressError.message || 'Unknown error',
+          },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          runId: 'run1',
+          hypothesisId: 'D',
+        };
+        console.error('[DEBUG] Zero Progress Error:', logDataZeroError);
+        fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataZeroError) }).catch(() => {});
+        // #endregion
+      }
+    }
+    
+    // Calculate needsMore - always true if there are more rows to process
+    // This ensures batch processor is always called if there are more rows
+    const needsMore = rows.length > rowsProcessedInFirstBatch
     
     // #region agent log
     const logData8 = {
-      location: 'app/api/import/csv/route.ts:852',
+      location: 'app/api/import/csv/route.ts:970',
       message: 'Returning import start response',
       data: {
         sessionId: importSession.id,
         totalRows: rows.length,
         rowsProcessed: rowsProcessedInFirstBatch,
-        needsMore: rowsProcessedInFirstBatch < rows.length,
+        needsMore,
+        firstBatchLength: firstBatch.length,
+        firstBatchFailed,
+        willCallBatchProcessor: needsMore,
       },
       timestamp: Date.now(),
       sessionId: 'debug-session',
@@ -1079,13 +1164,42 @@ export async function POST(req: NextRequest) {
     fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logData8) }).catch(() => {});
     // #endregion
     
+    // Verify session status in database before returning
+    try {
+      const verifySession = await prisma.importSession.findUnique({
+        where: { id: importSession.id },
+        select: { rowsProcessed: true, status: true },
+      })
+      
+      // #region agent log
+      const logDataVerify = {
+        location: 'app/api/import/csv/route.ts:990',
+        message: 'Verifying session before returning',
+        data: {
+          sessionId: importSession.id,
+          dbRowsProcessed: verifySession?.rowsProcessed || 0,
+          dbStatus: verifySession?.status || 'unknown',
+          localRowsProcessed: rowsProcessedInFirstBatch,
+        },
+        timestamp: Date.now(),
+        sessionId: 'debug-session',
+        runId: 'run1',
+        hypothesisId: 'D',
+      };
+      console.log('[DEBUG] Session Verification:', logDataVerify);
+      fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataVerify) }).catch(() => {});
+      // #endregion
+    } catch (verifyError: any) {
+      console.error('Failed to verify session:', verifyError)
+    }
+    
     return NextResponse.json({
       success: true,
       sessionId: importSession.id,
       totalRows: rows.length,
       rowsProcessed: rowsProcessedInFirstBatch,
-      message: 'Import started',
-      needsMore: rowsProcessedInFirstBatch < rows.length,
+      message: firstBatchFailed ? 'Import started (first batch will be processed by batch processor)' : 'Import started',
+      needsMore, // Always true if there are more rows to process
     })
               } catch (error: any) {
     console.error('CSV import error:', error)

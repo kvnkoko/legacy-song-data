@@ -30,35 +30,46 @@ export async function updateImportSessionProgress(
   rowsProcessed: number
 ) {
   try {
-    // Optimized: Direct update without fetching first (faster)
-    // Use raw SQL for maximum performance on large imports
-    // Note: ImportSession doesn't have updatedAt field, so we only update rowsProcessed
-    await prisma.$executeRaw`
-      UPDATE "ImportSession"
-      SET "rowsProcessed" = ${rowsProcessed}
-      WHERE "id" = ${sessionId}
-    `
+    // Use Prisma update instead of raw SQL for better error handling and compatibility
+    // This is more reliable on Vercel and handles errors better
+    const updated = await prisma.importSession.update({
+      where: { id: sessionId },
+      data: { rowsProcessed },
+      select: { totalRows: true, rowsProcessed: true },
+    })
     
     // Log progress updates periodically (less frequent for large imports)
     // Only log every 500 rows or at completion to reduce console noise
-    if (rowsProcessed % 500 === 0) {
-      const session = await prisma.importSession.findUnique({
-        where: { id: sessionId },
-        select: { totalRows: true },
-      })
-      if (session) {
-        const percentage = session.totalRows > 0 
-          ? Math.round((rowsProcessed / session.totalRows) * 100) 
-          : 0
-        console.log(`Progress: ${rowsProcessed}/${session.totalRows} rows (${percentage}%)`)
-      }
+    if (rowsProcessed % 500 === 0 || rowsProcessed === updated.totalRows) {
+      const percentage = updated.totalRows > 0 
+        ? Math.round((rowsProcessed / updated.totalRows) * 100) 
+        : 0
+      console.log(`Progress: ${rowsProcessed}/${updated.totalRows} rows (${percentage}%)`)
     }
     
-    return { rowsProcessed }
+    return { rowsProcessed: updated.rowsProcessed }
   } catch (error: any) {
     console.error(`Failed to update import progress for session ${sessionId}:`, error?.message || error)
     // Don't throw - allow import to continue even if progress update fails
     // But log it so we know there's an issue
+    // #region agent log
+    const logData = {
+      location: 'lib/csv-import-session.ts:28',
+      message: 'Progress update failed',
+      data: {
+        sessionId,
+        rowsProcessed,
+        error: error.message || 'Unknown error',
+        stack: error.stack,
+      },
+      timestamp: Date.now(),
+      sessionId: 'debug-session',
+      runId: 'run1',
+      hypothesisId: 'D',
+    };
+    console.error('[DEBUG] Progress Update Failed:', logData);
+    fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logData) }).catch(() => {});
+    // #endregion
     return null
   }
 }

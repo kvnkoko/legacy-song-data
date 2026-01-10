@@ -688,23 +688,91 @@ export default function ImportCSVPage() {
         }
         
         // Start processing batches
-        // If first batch was already processed, continue with next batch
-        if (result.needsMore) {
+        // Always check if there are more rows to process, even if first batch returned 0
+        // This ensures we continue processing even if first batch failed silently
+        const hasMoreRows = result.needsMore !== false && (result.totalRows > (result.rowsProcessed || 0))
+        
+        // #region agent log
+        const logDataFrontendStart = {
+          location: 'app/import-csv/page.tsx:692',
+          message: 'Frontend: Starting batch processing decision',
+          data: {
+            sessionId: result.sessionId,
+            totalRows: result.totalRows,
+            rowsProcessed: result.rowsProcessed || 0,
+            needsMore: result.needsMore,
+            hasMoreRows,
+          },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          runId: 'run1',
+          hypothesisId: 'B',
+        };
+        console.log('[DEBUG] Frontend Batch Decision:', logDataFrontendStart);
+        fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataFrontendStart) }).catch(() => {});
+        // #endregion
+        
+        if (hasMoreRows) {
+          // #region agent log
+          const logDataFrontendSchedule = {
+            location: 'app/import-csv/page.tsx:710',
+            message: 'Frontend: Scheduling batch processor',
+            data: {
+              sessionId: result.sessionId,
+              delay: 100,
+            },
+            timestamp: Date.now(),
+            sessionId: 'debug-session',
+            runId: 'run1',
+            hypothesisId: 'B',
+          };
+          console.log('[DEBUG] Frontend Scheduling:', logDataFrontendSchedule);
+          fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataFrontendSchedule) }).catch(() => {});
+          // #endregion
           pollingTimeoutRef.current = setTimeout(processNextBatch, 100)
         } else {
           // First batch completed everything, check for completion
+          // #region agent log
+          const logDataFrontendCheck = {
+            location: 'app/import-csv/page.tsx:720',
+            message: 'Frontend: Checking completion status',
+            data: {
+              sessionId: result.sessionId,
+            },
+            timestamp: Date.now(),
+            sessionId: 'debug-session',
+            runId: 'run1',
+            hypothesisId: 'B',
+          };
+          console.log('[DEBUG] Frontend Checking Completion:', logDataFrontendCheck);
+          fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataFrontendCheck) }).catch(() => {});
+          // #endregion
           const progressResponse = await fetch(
             `/api/import/csv/progress-simple?sessionId=${result.sessionId}`
           )
           if (progressResponse.ok) {
             const progressData = await progressResponse.json()
+            setImportProgress({
+              sessionId: result.sessionId,
+              totalRows: progressData.totalRows || result.totalRows,
+              rowsProcessed: progressData.rowsProcessed || 0,
+              percentage: progressData.percentage || 0,
+              status: progressData.status || 'in_progress',
+            })
             if (progressData.status === 'completed') {
               setLoading(false)
               setPollingActive(false)
               pollingActiveRef.current = false
               alert(`Import completed!\n\nProcessed: ${progressData.rowsProcessed} rows`)
               router.push('/releases').catch(() => { window.location.href = '/releases' })
+            } else if (progressData.status === 'in_progress' && progressData.rowsProcessed < progressData.totalRows) {
+              // Still in progress but frontend thought it was done - continue processing
+              pollingTimeoutRef.current = setTimeout(processNextBatch, 100)
             }
+          } else {
+            // Progress check failed - try to continue with batch processor anyway
+            console.warn('Progress check failed, continuing with batch processor')
+            pollingTimeoutRef.current = setTimeout(processNextBatch, 1000)
           }
         }
       } else {
