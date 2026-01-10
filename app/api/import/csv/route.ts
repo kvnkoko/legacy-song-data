@@ -74,37 +74,62 @@ export async function processRow(
       runId: 'run1',
       hypothesisId: 'L',
     };
-    console.log('[DEBUG] Extraction:', logDataExtraction);
+    // Log extraction details - log first few rows only to avoid spam
+    if (rowIndex < 3 || rowIndex % 50 === 0) {
+      console.log(`[IMPORT] Row ${rowIndex + 1} Extraction:`, {
+        hasReleaseTitle: !!submission.releaseTitle,
+        releaseTitle: submission.releaseTitle?.substring(0, 50) || 'MISSING',
+        hasArtistName: !!submission.artistName,
+        releaseTitleMapping: releaseTitleMapping ? {
+          csvColumn: releaseTitleMapping.csvColumn,
+          targetField: releaseTitleMapping.targetField,
+          fieldType: releaseTitleMapping.fieldType,
+          rowHasColumn: releaseTitleMapping.csvColumn in row,
+          rowValue: row[releaseTitleMapping.csvColumn]?.substring(0, 50) || 'EMPTY',
+        } : 'NOT FOUND',
+      })
+    }
+    
+    // #region agent log
     fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataExtraction) }).catch(() => {});
     // #endregion
     
     // Validate required fields
     if (!submission.releaseTitle || !submission.releaseTitle.trim()) {
-      // #region agent log - Debug missing releaseTitle
+      // Log ALL details for first few failures
+      const errorDetails = {
+        rowIndex: rowIndex + 1,
+        submissionKeys: Object.keys(submission),
+        releaseTitleMapping: releaseTitleMapping ? {
+          csvColumn: releaseTitleMapping.csvColumn,
+          targetField: releaseTitleMapping.targetField,
+          fieldType: releaseTitleMapping.fieldType,
+          csvColumnInRow: releaseTitleMapping.csvColumn in row,
+          rowValue: row[releaseTitleMapping.csvColumn] || 'NOT FOUND IN ROW',
+          normalizedRowValue: row[normalizeColumnName(releaseTitleMapping.csvColumn)] || 'NOT FOUND NORMALIZED',
+        } : 'MAPPING NOT FOUND',
+        allSubmissionMappings: mappings.filter(m => m.fieldType === 'submission').map(m => ({
+          csvColumn: m.csvColumn,
+          targetField: m.targetField,
+          rowHasColumn: m.csvColumn in row,
+          rowValue: row[m.csvColumn]?.substring(0, 50) || 'EMPTY',
+        })),
+        sampleRowKeys: Object.keys(row).slice(0, 15),
+        sampleRowValues: Object.fromEntries(Object.entries(row).slice(0, 5)),
+      }
+      
+      console.error(`[IMPORT] ❌ Row ${rowIndex + 1} FAILED: Missing releaseTitle`, errorDetails)
+      
+      // #region agent log
       const logDataMissingTitle = {
-        location: 'app/api/import/csv/route.ts:75',
+        location: 'app/api/import/csv/route.ts:82',
         message: 'Missing releaseTitle - validation failed',
-        data: {
-          rowIndex,
-          submissionKeys: Object.keys(submission),
-          releaseTitleMapping: releaseTitleMapping ? {
-            csvColumn: releaseTitleMapping.csvColumn,
-            targetField: releaseTitleMapping.targetField,
-            fieldType: releaseTitleMapping.fieldType,
-            csvColumnInRow: releaseTitleMapping.csvColumn in row,
-            rowValue: row[releaseTitleMapping.csvColumn]?.substring(0, 50) || 'NOT IN ROW',
-          } : 'MAPPING NOT FOUND',
-          allMappings: mappings.filter(m => m.fieldType === 'submission').map(m => ({
-            csvColumn: m.csvColumn,
-            targetField: m.targetField,
-          })),
-        },
+        data: errorDetails,
         timestamp: Date.now(),
         sessionId: 'debug-session',
         runId: 'run1',
         hypothesisId: 'L',
       };
-      console.error('[DEBUG] Missing Title:', logDataMissingTitle);
       fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataMissingTitle) }).catch(() => {});
       // #endregion
       
@@ -255,47 +280,69 @@ export async function processRow(
     let releaseCreated = false
     let releaseUpdated = false
     
-    if (submission.submissionId) {
-      const existing = await tx.release.findFirst({
-        where: { submissionId: submission.submissionId },
-      })
-      
-      if (existing) {
-        release = await tx.release.update({
-          where: { id: existing.id },
-          data: releaseData,
+    try {
+      if (submission.submissionId) {
+        const existing = await tx.release.findFirst({
+          where: { submissionId: submission.submissionId },
         })
-        releaseUpdated = true
+        
+        if (existing) {
+          release = await tx.release.update({
+            where: { id: existing.id },
+            data: releaseData,
+          })
+          releaseUpdated = true
+          if (rowIndex < 3) {
+            console.log(`[IMPORT] ✅ Row ${rowIndex + 1}: Updated existing release "${release.title}" (ID: ${release.id})`)
+          }
+        } else {
+          release = await tx.release.create({
+            data: {
+              ...releaseData,
+              submissionId: submission.submissionId,
+            },
+          })
+          releaseCreated = true
+          if (rowIndex < 3) {
+            console.log(`[IMPORT] ✅ Row ${rowIndex + 1}: Created new release "${release.title}" (ID: ${release.id})`)
+          }
+        }
       } else {
-        release = await tx.release.create({
-          data: {
-            ...releaseData,
-            submissionId: submission.submissionId,
+        // No submissionId - try to find by title and artist
+        const existing = await tx.release.findFirst({
+          where: {
+            title: submission.releaseTitle.trim(),
+            artistId: primaryArtist.id,
           },
         })
-        releaseCreated = true
+        
+        if (existing) {
+          release = await tx.release.update({
+            where: { id: existing.id },
+            data: releaseData,
+          })
+          releaseUpdated = true
+          if (rowIndex < 3) {
+            console.log(`[IMPORT] ✅ Row ${rowIndex + 1}: Updated existing release "${release.title}" (ID: ${release.id}) by title/artist`)
+          }
+        } else {
+          release = await tx.release.create({
+            data: releaseData,
+          })
+          releaseCreated = true
+          if (rowIndex < 3) {
+            console.log(`[IMPORT] ✅ Row ${rowIndex + 1}: Created new release "${release.title}" (ID: ${release.id}) by title/artist`)
+          }
+        }
       }
-    } else {
-      // No submissionId - try to find by title and artist
-      const existing = await tx.release.findFirst({
-        where: {
-          title: submission.releaseTitle.trim(),
-          artistId: primaryArtist.id,
-        },
+    } catch (releaseError: any) {
+      console.error(`[IMPORT] ❌ Row ${rowIndex + 1}: Failed to create/update release:`, releaseError.message)
+      console.error(`[IMPORT] Release data:`, {
+        title: releaseData.title,
+        artistId: releaseData.artistId,
+        type: releaseData.type,
       })
-      
-      if (existing) {
-        release = await tx.release.update({
-          where: { id: existing.id },
-          data: releaseData,
-        })
-        releaseUpdated = true
-      } else {
-        release = await tx.release.create({
-          data: releaseData,
-        })
-        releaseCreated = true
-      }
+      throw releaseError
     }
     
     // Assign A&Rs via junction table (multiple A&R support - comma-separated)

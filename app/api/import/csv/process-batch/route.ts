@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { processAllRows, processRow } from '../route'
-import { parseCSV } from '@/lib/csv-importer'
+import { parseCSV, normalizeColumnName } from '@/lib/csv-importer'
 import type { ParsedRow, MappingConfig } from '@/lib/csv-importer'
 import { updateImportSessionProgress, completeImportSession, failImportSession, resumeImportSession } from '@/lib/csv-import-session'
 
@@ -364,6 +364,40 @@ export async function POST(req: NextRequest) {
 
     // Process this batch
     const mappings = mappingConfig.columns
+    
+    // #region agent log - Check mappings
+    const releaseTitleMapping = mappings.find(m => m.targetField === 'releaseTitle' && m.fieldType === 'submission')
+    const logDataMappings = {
+      location: 'app/api/import/csv/process-batch/route.ts:365',
+      message: 'Checking mappings for batch processing',
+      data: {
+        sessionId,
+        totalMappings: mappings.length,
+        submissionMappings: mappings.filter(m => m.fieldType === 'submission').length,
+        songMappings: mappings.filter(m => m.fieldType === 'song').length,
+        releaseTitleMapping: releaseTitleMapping ? {
+          csvColumn: releaseTitleMapping.csvColumn,
+          targetField: releaseTitleMapping.targetField,
+          fieldType: releaseTitleMapping.fieldType,
+        } : 'NOT FOUND',
+        allSubmissionMappings: mappings.filter(m => m.fieldType === 'submission').map(m => ({
+          csvColumn: m.csvColumn,
+          targetField: m.targetField,
+        })),
+      },
+      timestamp: Date.now(),
+      sessionId: 'debug-session',
+      runId: 'run1',
+      hypothesisId: 'M',
+    };
+    console.log('[DEBUG] Batch Mappings:', logDataMappings);
+    if (!releaseTitleMapping) {
+      console.error('[IMPORT] ❌ CRITICAL: releaseTitle mapping not found! All rows will fail validation!')
+      console.error('[IMPORT] Available mappings:', mappings.filter(m => m.fieldType === 'submission').map(m => ({ csvColumn: m.csvColumn, targetField: m.targetField })))
+    }
+    fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataMappings) }).catch(() => {});
+    // #endregion
+    
     const errors: Array<{ row: number; message: string }> = []
     let submissionsCreated = (mappingConfig._submissionsCreated || 0) as number
     let submissionsUpdated = (mappingConfig._submissionsUpdated || 0) as number
@@ -378,6 +412,19 @@ export async function POST(req: NextRequest) {
 
     // Process each row in the batch
     const processingStartTime = Date.now()
+    
+    // Log first row details to debug column matching
+    if (batchRows.length > 0 && startFromRow < 3) {
+      const firstRow = batchRows[0]
+      const firstRowKeys = Object.keys(firstRow).slice(0, 20)
+      console.log(`[IMPORT] First row in batch (row ${startFromRow + 1}) has keys:`, firstRowKeys)
+      if (releaseTitleMapping) {
+        console.log(`[IMPORT] Looking for releaseTitle in column "${releaseTitleMapping.csvColumn}"`)
+        console.log(`[IMPORT] Value in row["${releaseTitleMapping.csvColumn}"]:`, firstRow[releaseTitleMapping.csvColumn]?.substring(0, 50) || 'NOT FOUND')
+        console.log(`[IMPORT] Value in row[normalized]:`, firstRow[normalizeColumnName(releaseTitleMapping.csvColumn)]?.substring(0, 50) || 'NOT FOUND')
+      }
+    }
+    
     for (let i = 0; i < batchRows.length; i++) {
       const rowIndex = startFromRow + i
       const row = batchRows[i]
@@ -390,14 +437,24 @@ export async function POST(req: NextRequest) {
           if (result.success) {
             if (result.releaseCreated) {
               submissionsCreated++
+              if (rowIndex < 5) {
+                console.log(`[IMPORT] ✅ Row ${rowIndex + 1}: Release CREATED (total created: ${submissionsCreated})`)
+              }
             }
             if (result.releaseUpdated) {
               submissionsUpdated++
+              if (rowIndex < 5) {
+                console.log(`[IMPORT] ✅ Row ${rowIndex + 1}: Release UPDATED (total updated: ${submissionsUpdated})`)
+              }
             }
             if (result.tracksCreated) {
               songsCreated += result.tracksCreated
             }
           } else {
+            // Log first few errors in detail
+            if (errors.length < 3) {
+              console.error(`[IMPORT] ❌ Row ${rowIndex + 1} FAILED:`, result.error)
+            }
             errors.push({
               row: rowIndex + 1,
               message: result.error || 'Unknown error',
