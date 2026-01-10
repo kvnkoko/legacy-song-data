@@ -14,27 +14,95 @@ const BATCH_SIZE = 20
 export async function POST(req: NextRequest) {
   let sessionId: string | null = null
   
+  // #region agent log - Very first log to confirm route is hit
+  const logDataEntry = {
+    location: 'app/api/import/csv/process-batch/route.ts:14',
+    message: 'Batch processor route ENTRY',
+    data: {
+      method: 'POST',
+      url: req.url,
+    },
+    timestamp: Date.now(),
+    sessionId: 'debug-session',
+    runId: 'run1',
+    hypothesisId: 'I',
+  };
+  console.log('[DEBUG] Batch Processor Entry:', logDataEntry);
+  fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataEntry) }).catch(() => {});
+  // #endregion
+  
   try {
     const session = await getServerSession(authOptions)
     if (!session) {
+      // #region agent log
+      const logDataNoAuth = {
+        location: 'app/api/import/csv/process-batch/route.ts:25',
+        message: 'Batch processor: No auth session',
+        data: {},
+        timestamp: Date.now(),
+        sessionId: 'debug-session',
+        runId: 'run1',
+        hypothesisId: 'I',
+      };
+      console.error('[DEBUG] No Auth:', logDataNoAuth);
+      fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataNoAuth) }).catch(() => {});
+      // #endregion
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await req.json()
-    sessionId = body.sessionId
-
     // #region agent log
-    const logData1 = {
-      location: 'app/api/import/csv/process-batch/route.ts:13',
-      message: 'Batch processor called',
+    const logDataAuth = {
+      location: 'app/api/import/csv/process-batch/route.ts:35',
+      message: 'Batch processor: Auth OK',
       data: {
-        sessionId: sessionId || 'missing',
-        hasSessionId: !!sessionId,
+        userId: session.user.id,
       },
       timestamp: Date.now(),
       sessionId: 'debug-session',
       runId: 'run1',
-      hypothesisId: 'C',
+      hypothesisId: 'I',
+    };
+    console.log('[DEBUG] Auth OK:', logDataAuth);
+    fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataAuth) }).catch(() => {});
+    // #endregion
+
+    let body: any
+    try {
+      body = await req.json()
+    } catch (jsonError: any) {
+      // #region agent log
+      const logDataJsonError = {
+        location: 'app/api/import/csv/process-batch/route.ts:45',
+        message: 'Batch processor: Failed to parse JSON',
+        data: {
+          error: jsonError.message || 'Unknown JSON error',
+        },
+        timestamp: Date.now(),
+        sessionId: 'debug-session',
+        runId: 'run1',
+        hypothesisId: 'I',
+      };
+      console.error('[DEBUG] JSON Parse Error:', logDataJsonError);
+      fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataJsonError) }).catch(() => {});
+      // #endregion
+      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 })
+    }
+    
+    sessionId = body.sessionId
+
+    // #region agent log
+    const logData1 = {
+      location: 'app/api/import/csv/process-batch/route.ts:55',
+      message: 'Batch processor called',
+      data: {
+        sessionId: sessionId || 'missing',
+        hasSessionId: !!sessionId,
+        bodyKeys: Object.keys(body),
+      },
+      timestamp: Date.now(),
+      sessionId: 'debug-session',
+      runId: 'run1',
+      hypothesisId: 'I',
     };
     console.log('[DEBUG] Batch Processor Called:', logData1);
     fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logData1) }).catch(() => {});
@@ -228,22 +296,27 @@ export async function POST(req: NextRequest) {
     } else {
       // #region agent log
       const logData3 = {
-        location: 'app/api/import/csv/process-batch/route.ts:60',
+        location: 'app/api/import/csv/process-batch/route.ts:200',
         message: 'CSV rows and content not found in session',
         data: {
           sessionId,
           hasMappingConfig: !!mappingConfig,
           mappingConfigKeys: mappingConfig ? Object.keys(mappingConfig) : [],
+          mappingConfigType: typeof mappingConfig,
+          mappingConfigString: JSON.stringify(mappingConfig).substring(0, 500),
         },
         timestamp: Date.now(),
         sessionId: 'debug-session',
         runId: 'run1',
-        hypothesisId: 'C',
+        hypothesisId: 'I',
       };
       console.error('[DEBUG] Missing CSV Data:', logData3);
       fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logData3) }).catch(() => {});
       // #endregion
-      return NextResponse.json({ error: 'CSV rows and content not found in session' }, { status: 400 })
+      return NextResponse.json({ 
+        error: 'CSV rows and content not found in session',
+        details: 'The import session does not contain the CSV data. Please restart the import.',
+      }, { status: 400 })
     }
     const startFromRow = importSession.rowsProcessed
     const endRow = Math.min(startFromRow + BATCH_SIZE, rows.length)

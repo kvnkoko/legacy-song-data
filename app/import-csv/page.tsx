@@ -516,25 +516,66 @@ export default function ImportCSVPage() {
             // #endregion
             
             // Call batch processor endpoint
-            const batchResponse = await fetch('/api/import/csv/process-batch', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ sessionId: result.sessionId }),
-            })
+            // #region agent log
+            const logDataBeforeCall = {
+              location: 'app/import-csv/page.tsx:519',
+              message: 'Frontend: About to call batch processor',
+              data: {
+                sessionId: result.sessionId,
+                url: '/api/import/csv/process-batch',
+              },
+              timestamp: Date.now(),
+              sessionId: 'debug-session',
+              runId: 'run1',
+              hypothesisId: 'H',
+            };
+            console.log('[DEBUG] Before Batch Call:', logDataBeforeCall);
+            fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataBeforeCall) }).catch(() => {});
+            // #endregion
+            
+            let batchResponse
+            try {
+              batchResponse = await fetch('/api/import/csv/process-batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sessionId: result.sessionId }),
+              })
+            } catch (fetchError: any) {
+              // #region agent log
+              const logDataFetchError = {
+                location: 'app/import-csv/page.tsx:530',
+                message: 'Frontend: Batch processor fetch failed',
+                data: {
+                  sessionId: result.sessionId,
+                  error: fetchError.message || 'Unknown fetch error',
+                  stack: fetchError.stack,
+                },
+                timestamp: Date.now(),
+                sessionId: 'debug-session',
+                runId: 'run1',
+                hypothesisId: 'H',
+              };
+              console.error('[DEBUG] Fetch Error:', logDataFetchError);
+              fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataFetchError) }).catch(() => {});
+              // #endregion
+              throw fetchError
+            }
             
             // #region agent log
             const logDataFrontend4 = {
-              location: 'app/import-csv/page.tsx:479',
+              location: 'app/import-csv/page.tsx:540',
               message: 'Frontend: Batch processor response received',
               data: {
                 sessionId: result.sessionId,
                 ok: batchResponse.ok,
                 status: batchResponse.status,
+                statusText: batchResponse.statusText,
+                headers: Object.fromEntries(batchResponse.headers.entries()),
               },
               timestamp: Date.now(),
               sessionId: 'debug-session',
               runId: 'run1',
-              hypothesisId: 'B',
+              hypothesisId: 'H',
             };
             console.log('[DEBUG] Frontend Batch Response:', logDataFrontend4);
             fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataFrontend4) }).catch(() => {});
@@ -542,7 +583,32 @@ export default function ImportCSVPage() {
             
             if (!batchResponse.ok) {
               // If batch endpoint fails, check progress and retry
-              const errorData = await batchResponse.json().catch(() => ({}))
+              let errorData: any = {}
+              try {
+                const errorText = await batchResponse.text()
+                errorData = errorText ? JSON.parse(errorText) : {}
+              } catch (e) {
+                errorData = { error: `HTTP ${batchResponse.status}: ${batchResponse.statusText}` }
+              }
+              
+              // #region agent log
+              const logDataError = {
+                location: 'app/import-csv/page.tsx:560',
+                message: 'Frontend: Batch processor returned error',
+                data: {
+                  sessionId: result.sessionId,
+                  status: batchResponse.status,
+                  errorData,
+                },
+                timestamp: Date.now(),
+                sessionId: 'debug-session',
+                runId: 'run1',
+                hypothesisId: 'H',
+              };
+              console.error('[DEBUG] Batch Error:', logDataError);
+              fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataError) }).catch(() => {});
+              // #endregion
+              
               console.warn('Batch processing error:', errorData.error || 'Unknown error')
               
               // Check progress to see current state
@@ -602,7 +668,64 @@ export default function ImportCSVPage() {
               return
             }
             
-            const batchData = await batchResponse.json()
+            let batchData: any
+            try {
+              const responseText = await batchResponse.text()
+              // #region agent log
+              const logDataResponseText = {
+                location: 'app/import-csv/page.tsx:605',
+                message: 'Frontend: Batch processor response text',
+                data: {
+                  sessionId: result.sessionId,
+                  responseText: responseText.substring(0, 500), // First 500 chars
+                  responseLength: responseText.length,
+                },
+                timestamp: Date.now(),
+                sessionId: 'debug-session',
+                runId: 'run1',
+                hypothesisId: 'H',
+              };
+              console.log('[DEBUG] Response Text:', logDataResponseText);
+              fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataResponseText) }).catch(() => {});
+              // #endregion
+              
+              batchData = responseText ? JSON.parse(responseText) : {}
+            } catch (parseError: any) {
+              // #region agent log
+              const logDataParseError = {
+                location: 'app/import-csv/page.tsx:620',
+                message: 'Frontend: Failed to parse batch response',
+                data: {
+                  sessionId: result.sessionId,
+                  error: parseError.message || 'Unknown parse error',
+                },
+                timestamp: Date.now(),
+                sessionId: 'debug-session',
+                runId: 'run1',
+                hypothesisId: 'H',
+              };
+              console.error('[DEBUG] Parse Error:', logDataParseError);
+              fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataParseError) }).catch(() => {});
+              // #endregion
+              throw parseError
+            }
+            
+            // #region agent log
+            const logDataBatchData = {
+              location: 'app/import-csv/page.tsx:630',
+              message: 'Frontend: Batch processor data parsed',
+              data: {
+                sessionId: result.sessionId,
+                batchData,
+              },
+              timestamp: Date.now(),
+              sessionId: 'debug-session',
+              runId: 'run1',
+              hypothesisId: 'H',
+            };
+            console.log('[DEBUG] Batch Data:', logDataBatchData);
+            fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataBatchData) }).catch(() => {});
+            // #endregion
             
             // Update progress
             const percentage = batchData.totalRows > 0 
