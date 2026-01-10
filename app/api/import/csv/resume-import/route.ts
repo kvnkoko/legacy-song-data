@@ -44,8 +44,15 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // If stuck in_progress, we need CSV content to restart the process
-    if (isStuck && !csvContent) {
+    // Check if CSV content is available in session mappingConfig
+    const mappingConfig = importSession.mappingConfig as MappingConfig & {
+      _csvContent?: string
+      _csvRows?: any[]
+    }
+    const hasCsvInSession = !!(mappingConfig._csvContent || mappingConfig._csvRows)
+    
+    // If stuck in_progress, we need CSV content to restart the process (either from request or session)
+    if (isStuck && !csvContent && !hasCsvInSession) {
       return NextResponse.json(
         { error: 'CSV content required to resume stuck import. Please re-upload the CSV file and click Resume.' },
         { status: 400 }
@@ -57,10 +64,20 @@ export async function POST(req: NextRequest) {
       await resumeImportSession(sessionId)
     }
 
-    // If CSV content is provided, continue processing from where it left off
-    if (csvContent) {
-      const { rows } = parseCSV(csvContent)
-      const mappingConfig = importSession.mappingConfig as MappingConfig
+    // Try to get CSV content from session mappingConfig if not provided
+    const mappingConfig = importSession.mappingConfig as MappingConfig & {
+      _csvContent?: string
+      _csvRows?: any[]
+    }
+    
+    let csvContentToUse = csvContent
+    if (!csvContentToUse && mappingConfig._csvContent) {
+      csvContentToUse = mappingConfig._csvContent
+    }
+
+    // If CSV content is available (from request or session), continue processing from where it left off
+    if (csvContentToUse) {
+      const { rows } = parseCSV(csvContentToUse)
       const startFromRow = importSession.rowsProcessed
 
       console.log(`🔄 Restarting import from row ${startFromRow} (${rows.length - startFromRow} rows remaining)`)
@@ -81,9 +98,10 @@ export async function POST(req: NextRequest) {
         }
       })()
     } else {
-      // CSV content not provided - this is okay if status is paused, the import loop will check
-      // the status and continue automatically when it sees status changed to 'in_progress'
-      console.log('Resume requested without CSV content - import will continue automatically')
+      // CSV content not provided and not in session - this is okay if status is paused
+      // The batch processor will check the status and continue automatically when it sees status changed to 'in_progress'
+      // Since we already resumed the session above, the batch processor should pick it up
+      console.log('Resume requested without CSV content - batch processor will continue automatically')
     }
 
     return NextResponse.json({

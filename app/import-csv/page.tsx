@@ -668,14 +668,67 @@ export default function ImportCSVPage() {
                 alert(`Import completed!\n\nProcessed: ${batchData.rowsProcessed} rows`)
                 router.push('/releases').catch(() => { window.location.href = '/releases' })
               }
-            } else if (batchData.needsMore && pollingActiveRef.current) {
+            } else if (batchData.paused) {
+              // Import paused - auto-resume by calling batch processor again (it will auto-resume)
+              // #region agent log
+              const logDataPaused = {
+                location: 'app/import-csv/page.tsx:674',
+                message: 'Frontend: Batch processor returned paused - will auto-resume on next call',
+                data: {
+                  sessionId: result.sessionId,
+                },
+                timestamp: Date.now(),
+                sessionId: 'debug-session',
+                runId: 'run1',
+                hypothesisId: 'G',
+              };
+              console.log('[DEBUG] Paused Response:', logDataPaused);
+              fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataPaused) }).catch(() => {});
+              // #endregion
+              // Update status to paused in UI
+              setImportProgress(prev => prev ? { ...prev, status: 'paused' } : null)
+              // Continue calling batch processor - it will auto-resume paused sessions
+              if (pollingActiveRef.current) {
+                pollingTimeoutRef.current = setTimeout(processNextBatch, 500)
+              }
+            } else if (batchData.needsMore !== false && pollingActiveRef.current) {
               // Process next batch after a short delay
               pollingTimeoutRef.current = setTimeout(processNextBatch, 100)
-            } else if (batchData.paused) {
-              // Import paused
-              setLoading(false)
-              if (pollingActiveRef.current) {
-                pollingTimeoutRef.current = setTimeout(processNextBatch, 2000)
+            } else if (!batchData.completed && pollingActiveRef.current) {
+              // Not completed but needsMore might be undefined or false - still try to continue
+              // #region agent log
+              const logDataUnknown = {
+                location: 'app/import-csv/page.tsx:685',
+                message: 'Frontend: Unknown batch state - retrying',
+                data: {
+                  sessionId: result.sessionId,
+                  batchData,
+                },
+                timestamp: Date.now(),
+                sessionId: 'debug-session',
+                runId: 'run1',
+                hypothesisId: 'G',
+              };
+              console.warn('[DEBUG] Unknown Batch State:', logDataUnknown);
+              fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataUnknown) }).catch(() => {});
+              // #endregion
+              // Check progress to see actual state
+              try {
+                const progressResponse = await fetch(
+                  `/api/import/csv/progress-simple?sessionId=${result.sessionId}`
+                )
+                if (progressResponse.ok) {
+                  const progressData = await progressResponse.json()
+                  if (progressData.status === 'in_progress' && progressData.rowsProcessed < progressData.totalRows) {
+                    // Still in progress - continue
+                    pollingTimeoutRef.current = setTimeout(processNextBatch, 1000)
+                  }
+                }
+              } catch (e) {
+                // Retry anyway
+                if (pollingActiveRef.current) {
+                  pollingTimeoutRef.current = setTimeout(processNextBatch, 2000)
+                }
               }
             }
           } catch (err: any) {
@@ -690,7 +743,8 @@ export default function ImportCSVPage() {
         // Start processing batches
         // Always check if there are more rows to process, even if first batch returned 0
         // This ensures we continue processing even if first batch failed silently
-        const hasMoreRows = result.needsMore !== false && (result.totalRows > (result.rowsProcessed || 0))
+        // If needsMore is undefined, default to true if there are rows
+        const hasMoreRows = (result.needsMore !== false) && (result.totalRows ? (result.totalRows > (result.rowsProcessed || 0)) : true)
         
         // #region agent log
         const logDataFrontendStart = {
@@ -1198,17 +1252,22 @@ export default function ImportCSVPage() {
                       <Button
                         variant="outline"
                         onClick={async () => {
-                          if (!importProgress.sessionId || !file) return
+                          if (!importProgress.sessionId) return
                           
                           setLoading(true)
                           try {
-                            const content = await file.text()
+                            // Try to get CSV content from file if available, otherwise let API get it from session
+                            let csvContent: string | undefined
+                            if (file) {
+                              csvContent = await file.text()
+                            }
+                            
                             const response = await fetch('/api/import/csv/resume-import', {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({
                                 sessionId: importProgress.sessionId,
-                                csvContent: content,
+                                csvContent: csvContent, // May be undefined, API will get from session
                               }),
                             })
                             
@@ -1220,17 +1279,36 @@ export default function ImportCSVPage() {
                             const result = await response.json()
                             setImportProgress(prev => prev ? { ...prev, status: 'in_progress' } : null)
                             setLoading(false)
-                            alert(`Import resumed from row ${result.resumingFrom}`)
                             
-                            // Restart polling
+                            // Restart polling immediately - batch processor will handle processing
                             setPollingActive(true)
                             pollingActiveRef.current = true
+                            
+                            // Trigger batch processor immediately
+                            if (result.sessionId) {
+                              // Call batch processor directly to start processing
+                              setTimeout(async () => {
+                                try {
+                                  const batchResponse = await fetch('/api/import/csv/process-batch', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ sessionId: result.sessionId }),
+                                  })
+                                  if (batchResponse.ok) {
+                                    const batchData = await batchResponse.json()
+                                    console.log('Batch processor started:', batchData)
+                                  }
+                                } catch (e) {
+                                  console.error('Failed to trigger batch processor:', e)
+                                }
+                              }, 100)
+                            }
                           } catch (error: any) {
                             setError(error.message || 'Failed to resume import')
                             setLoading(false)
                           }
                         }}
-                        disabled={loading}
+                        disabled={loading || !importProgress.sessionId}
                       >
                         Resume Import
                       </Button>
