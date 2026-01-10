@@ -8,8 +8,9 @@ export interface ParsedRow {
 
 export interface ColumnMapping {
   csvColumn: string
-  targetField: string
+  targetField: string | null
   fieldType: 'submission' | 'song'
+  songIndex?: number // For numbered song columns (e.g., "Song 1 Producer (archived)")
 }
 
 export interface MappingConfig {
@@ -1162,11 +1163,15 @@ export function autoDetectMappings(headers: string[]): ColumnMapping[] {
     { pattern: /^song[_\s]*\d+[_\s]*name$/i, field: 'name', type: 'song' },
     { pattern: /^song[_\s]*\d+[_\s]*composer[_\s]*name?$/i, field: 'composerName', type: 'song' },
     { pattern: /^song[_\s]*\d+[_\s]*composer$/i, field: 'composerName', type: 'song' },
-    // Producer Archived patterns - most specific first
+    // Producer Archived patterns - most specific first (numbered songs)
+    // Match "Song X Producer (archived)" variations - most specific first
     { pattern: /^song[_\s]*\d+[_\s]*producer[_\s]*\([_\s]*archived[_\s]*\)$/i, field: 'producerArchived', type: 'song' },
+    { pattern: /^song[_\s]*\d+[_\s]*producer[_\s]*\(archived\)$/i, field: 'producerArchived', type: 'song' },
+    { pattern: /^song[_\s]*\d+[_\s]*producer[_\s]*\([_\s]*Archived[_\s]*\)$/i, field: 'producerArchived', type: 'song' },
     { pattern: /^song[_\s]*\d+[_\s]*producer[_\s]*archived[_\s]*name$/i, field: 'producerArchived', type: 'song' },
     { pattern: /^song[_\s]*\d+[_\s]*producer[_\s]*archived$/i, field: 'producerArchived', type: 'song' },
     { pattern: /^song[_\s]*\d+[_\s]*music[_\s]*producer[_\s]*archived$/i, field: 'producerArchived', type: 'song' },
+    { pattern: /^song[_\s]*\d+[_\s]*music[_\s]*producer[_\s]*\([_\s]*archived[_\s]*\)$/i, field: 'producerArchived', type: 'song' },
     { pattern: /^song[_\s]*\d+[_\s]*producer[_\s]*\([_\s]*archived[_\s]*\)[_\s]*name$/i, field: 'producerArchived', type: 'song' },
     { pattern: /^song[_\s]*\d+[_\s]*producer[_\s]*name[_\s]*\([_\s]*archived[_\s]*\)$/i, field: 'producerArchived', type: 'song' },
     { pattern: /^song[_\s]*\d+[_\s]*producer[_\s]*name$/i, field: 'producerArchived', type: 'song' },
@@ -1197,12 +1202,16 @@ export function autoDetectMappings(headers: string[]): ColumnMapping[] {
     { pattern: /^studio$/i, field: 'studioName', type: 'song' },
     { pattern: /^genre$/i, field: 'genre', type: 'song' },
     // Producer Archived patterns - most specific first (non-numbered)
+    // Match exact "Producer (archived)" or "Producer (Archived)" variations first
     { pattern: /^producer[_\s]*\([_\s]*archived[_\s]*\)$/i, field: 'producerArchived', type: 'song' },
+    { pattern: /^producer[_\s]*\(archived\)$/i, field: 'producerArchived', type: 'song' },
     { pattern: /^producer[_\s]*archived[_\s]*name$/i, field: 'producerArchived', type: 'song' },
     { pattern: /^producer[_\s]*archived$/i, field: 'producerArchived', type: 'song' },
-    { pattern: /^music[_\s]*producer[_\s]*archived$/i, field: 'producerArchived', type: 'song' },
     { pattern: /^producer[_\s]*\([_\s]*archived[_\s]*\)[_\s]*name$/i, field: 'producerArchived', type: 'song' },
     { pattern: /^producer[_\s]*name[_\s]*\([_\s]*archived[_\s]*\)$/i, field: 'producerArchived', type: 'song' },
+    { pattern: /^music[_\s]*producer[_\s]*archived$/i, field: 'producerArchived', type: 'song' },
+    { pattern: /^music[_\s]*producer[_\s]*\([_\s]*archived[_\s]*\)$/i, field: 'producerArchived', type: 'song' },
+    // More general patterns (less specific, but match common variations)
     { pattern: /^producer[_\s]*name$/i, field: 'producerArchived', type: 'song' },
     { pattern: /^music[_\s]*producer$/i, field: 'producerArchived', type: 'song' },
     { pattern: /^band[_\s]*\/[_\s]*music[_\s]*producer$/i, field: 'producerArchived', type: 'song' },
@@ -1220,11 +1229,25 @@ export function autoDetectMappings(headers: string[]): ColumnMapping[] {
     // Check patterns in order (most specific first)
     for (const { pattern, field, type } of fieldPatterns) {
       if (pattern.test(header) || pattern.test(normalized)) {
-        // Add the mapping - numbered song fields are explicitly handled by patterns above
+        // Extract song index for numbered song columns (e.g., "Song 1 Producer (archived)")
+        let songIndex: number | undefined = undefined
+        if (type === 'song') {
+          // Try multiple patterns to extract song number
+          const songMatch1 = header.match(/^song[_\s]*(\d+)/i)
+          const songMatch2 = header.match(/\bsong[_\s]*(\d+)/i)
+          const songMatch3 = normalized.match(/song[_\s]*(\d+)/)
+          const match = songMatch1 || songMatch2 || songMatch3
+          if (match) {
+            songIndex = parseInt(match[1], 10)
+          }
+        }
+        
+        // Add the mapping - numbered song fields now have songIndex set
         mappings.push({
           csvColumn: header,
           targetField: field,
           fieldType: type,
+          songIndex: songIndex, // Set to undefined if not a numbered song column
         })
         matchedHeaders.add(header)
         matched = true
