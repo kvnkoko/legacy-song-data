@@ -1164,7 +1164,14 @@ export function autoDetectMappings(headers: string[]): ColumnMapping[] {
     { pattern: /^song[_\s]*\d+[_\s]*composer[_\s]*name?$/i, field: 'composerName', type: 'song' },
     { pattern: /^song[_\s]*\d+[_\s]*composer$/i, field: 'composerName', type: 'song' },
     // Producer Archived patterns - most specific first (numbered songs)
-    // Match "Song X Producer (archived)" variations - most specific first
+    // Handle variations like "Song X Song Produce (Archived)" or "Song X Song Producer (Archived)"
+    // Note: Some CSVs have typos like "Produce" instead of "Producer" or duplicate "Song" word
+    { pattern: /^song[_\s]*\d+[_\s]*song[_\s]*(?:produce|producer)[_\s]*\([_\s]*archived[_\s]*\)$/i, field: 'producerArchived', type: 'song' },
+    { pattern: /^song[_\s]*\d+[_\s]*song[_\s]*(?:produce|producer)[_\s]*\(archived\)$/i, field: 'producerArchived', type: 'song' },
+    { pattern: /^song[_\s]*\d+[_\s]*song[_\s]*(?:produce|producer)[_\s]*\([_\s]*Archived[_\s]*\)$/i, field: 'producerArchived', type: 'song' },
+    { pattern: /^song[_\s]*\d+[_\s]*song[_\s]*(?:produce|producer)[_\s]*archived[_\s]*name$/i, field: 'producerArchived', type: 'song' },
+    { pattern: /^song[_\s]*\d+[_\s]*song[_\s]*(?:produce|producer)[_\s]*archived$/i, field: 'producerArchived', type: 'song' },
+    // Standard "Song X Producer (archived)" variations - most specific first
     { pattern: /^song[_\s]*\d+[_\s]*producer[_\s]*\([_\s]*archived[_\s]*\)$/i, field: 'producerArchived', type: 'song' },
     { pattern: /^song[_\s]*\d+[_\s]*producer[_\s]*\(archived\)$/i, field: 'producerArchived', type: 'song' },
     { pattern: /^song[_\s]*\d+[_\s]*producer[_\s]*\([_\s]*Archived[_\s]*\)$/i, field: 'producerArchived', type: 'song' },
@@ -1178,6 +1185,9 @@ export function autoDetectMappings(headers: string[]): ColumnMapping[] {
     { pattern: /^song[_\s]*\d+[_\s]*producer$/i, field: 'producerArchived', type: 'song' },
     { pattern: /^song[_\s]*\d+[_\s]*music[_\s]*producer$/i, field: 'producerArchived', type: 'song' },
     { pattern: /^song[_\s]*\d+[_\s]*band[_\s]*\/[_\s]*music[_\s]*producer$/i, field: 'producerArchived', type: 'song' },
+    // Handle typos: "Produce" instead of "Producer"
+    { pattern: /^song[_\s]*\d+[_\s]*produce[_\s]*\([_\s]*archived[_\s]*\)$/i, field: 'producerArchived', type: 'song' },
+    { pattern: /^song[_\s]*\d+[_\s]*produce[_\s]*archived$/i, field: 'producerArchived', type: 'song' },
     { pattern: /^song[_\s]*\d+[_\s]*performer[_\s]*name?$/i, field: 'performerName', type: 'song' },
     { pattern: /^song[_\s]*\d+[_\s]*performer$/i, field: 'performerName', type: 'song' },
     { pattern: /^song[_\s]*\d+[_\s]*band[_\s]*name?$/i, field: 'bandName', type: 'song' },
@@ -1202,6 +1212,8 @@ export function autoDetectMappings(headers: string[]): ColumnMapping[] {
     { pattern: /^studio$/i, field: 'studioName', type: 'song' },
     { pattern: /^genre$/i, field: 'genre', type: 'song' },
     // Producer Archived patterns - most specific first (non-numbered)
+    // Handle "Song X Song Produce/Producer" format (duplicate Song word) even without numbers in pattern
+    { pattern: /^song[_\s]*song[_\s]*(?:produce|producer)[_\s]*\([_\s]*archived[_\s]*\)$/i, field: 'producerArchived', type: 'song' },
     // Match exact "Producer (archived)" or "Producer (Archived)" variations first
     { pattern: /^producer[_\s]*\([_\s]*archived[_\s]*\)$/i, field: 'producerArchived', type: 'song' },
     { pattern: /^producer[_\s]*\(archived\)$/i, field: 'producerArchived', type: 'song' },
@@ -1211,6 +1223,9 @@ export function autoDetectMappings(headers: string[]): ColumnMapping[] {
     { pattern: /^producer[_\s]*name[_\s]*\([_\s]*archived[_\s]*\)$/i, field: 'producerArchived', type: 'song' },
     { pattern: /^music[_\s]*producer[_\s]*archived$/i, field: 'producerArchived', type: 'song' },
     { pattern: /^music[_\s]*producer[_\s]*\([_\s]*archived[_\s]*\)$/i, field: 'producerArchived', type: 'song' },
+    // Handle typos: "Produce" instead of "Producer" (non-numbered)
+    { pattern: /^produce[_\s]*\([_\s]*archived[_\s]*\)$/i, field: 'producerArchived', type: 'song' },
+    { pattern: /^produce[_\s]*archived$/i, field: 'producerArchived', type: 'song' },
     // More general patterns (less specific, but match common variations)
     { pattern: /^producer[_\s]*name$/i, field: 'producerArchived', type: 'song' },
     { pattern: /^music[_\s]*producer$/i, field: 'producerArchived', type: 'song' },
@@ -1229,13 +1244,18 @@ export function autoDetectMappings(headers: string[]): ColumnMapping[] {
     // Check patterns in order (most specific first)
     for (const { pattern, field, type } of fieldPatterns) {
       if (pattern.test(header) || pattern.test(normalized)) {
-        // Extract song index for numbered song columns (e.g., "Song 1 Producer (archived)")
+        // Extract song index for numbered song columns (e.g., "Song 1 Producer (archived)" or "Song 10 Song Produce (Archived)")
         let songIndex: number | undefined = undefined
         if (type === 'song') {
           // Try multiple patterns to extract song number
+          // Handle formats like:
+          // - "Song 1 Producer (archived)"
+          // - "Song 10 Song Produce (Archived)" (duplicate Song word)
+          // - "song_1_producer" (normalized)
           const songMatch1 = header.match(/^song[_\s]*(\d+)/i)
-          const songMatch2 = header.match(/\bsong[_\s]*(\d+)/i)
+          const songMatch2 = header.match(/\bsong[_\s]*(\d+)/i) // Find first number after "song"
           const songMatch3 = normalized.match(/song[_\s]*(\d+)/)
+          // For "Song X Song..." format, the first number is the song index
           const match = songMatch1 || songMatch2 || songMatch3
           if (match) {
             songIndex = parseInt(match[1], 10)
