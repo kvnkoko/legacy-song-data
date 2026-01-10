@@ -74,20 +74,32 @@ export async function processRow(
       runId: 'run1',
       hypothesisId: 'L',
     };
-    // Log extraction details - log first few rows only to avoid spam
-    if (rowIndex < 3 || rowIndex % 50 === 0) {
-      console.log(`[IMPORT] Row ${rowIndex + 1} Extraction:`, {
+    // Log extraction details - ALWAYS log first 3 rows for debugging
+    if (rowIndex < 3) {
+      console.log(`\n[IMPORT] ========== Row ${rowIndex + 1} Extraction ==========`)
+      console.log(`[IMPORT] Row keys (first 20):`, Object.keys(row).slice(0, 20))
+      console.log(`[IMPORT] ReleaseTitle Mapping:`, releaseTitleMapping ? {
+        csvColumn: releaseTitleMapping.csvColumn,
+        targetField: releaseTitleMapping.targetField,
+        fieldType: releaseTitleMapping.fieldType,
+      } : '❌ NOT FOUND IN MAPPINGS!')
+      
+      if (releaseTitleMapping) {
+        console.log(`[IMPORT] Looking for column: "${releaseTitleMapping.csvColumn}"`)
+        console.log(`[IMPORT] row["${releaseTitleMapping.csvColumn}"] =`, row[releaseTitleMapping.csvColumn]?.substring(0, 100) || '❌ NOT FOUND')
+        console.log(`[IMPORT] row[normalized] =`, row[normalizeColumnName(releaseTitleMapping.csvColumn)]?.substring(0, 100) || '❌ NOT FOUND')
+      }
+      
+      console.log(`[IMPORT] Extracted submission:`, {
         hasReleaseTitle: !!submission.releaseTitle,
-        releaseTitle: submission.releaseTitle?.substring(0, 50) || 'MISSING',
+        releaseTitle: submission.releaseTitle?.substring(0, 100) || '❌ MISSING',
         hasArtistName: !!submission.artistName,
-        releaseTitleMapping: releaseTitleMapping ? {
-          csvColumn: releaseTitleMapping.csvColumn,
-          targetField: releaseTitleMapping.targetField,
-          fieldType: releaseTitleMapping.fieldType,
-          rowHasColumn: releaseTitleMapping.csvColumn in row,
-          rowValue: row[releaseTitleMapping.csvColumn]?.substring(0, 50) || 'EMPTY',
-        } : 'NOT FOUND',
+        artistName: submission.artistName?.substring(0, 50) || 'MISSING',
+        submissionKeys: Object.keys(submission),
       })
+      console.log(`[IMPORT] ============================================\n`)
+    } else if (rowIndex % 50 === 0) {
+      console.log(`[IMPORT] Row ${rowIndex + 1}: hasReleaseTitle=${!!submission.releaseTitle}`)
     }
     
     // #region agent log
