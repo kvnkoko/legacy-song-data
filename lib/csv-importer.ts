@@ -682,18 +682,22 @@ export function extractSubmissionData(
     const columnName = mapping.csvColumn
     // Try exact match first, then normalized, then check if column exists in row at all
     let value = row[columnName]
-    if (value === undefined || value === null) {
+    if (value === undefined || value === null || value === '') {
       value = row[normalizeColumnName(columnName)]
     }
-    if (value === undefined || value === null) {
+    if (value === undefined || value === null || value === '') {
       // Last resort: check if any key in row matches (case-insensitive)
       const normalizedTarget = normalizeColumnName(columnName)
       for (const key in row) {
         if (normalizeColumnName(key) === normalizedTarget) {
           value = row[key]
-          break
+          if (value && value !== '') break
         }
       }
+    }
+    // Also try trimming the column name in case there are extra spaces
+    if ((value === undefined || value === null || value === '') && columnName.trim() !== columnName) {
+      value = row[columnName.trim()]
     }
     // Default to empty string if still not found
     value = value ?? ''
@@ -746,6 +750,26 @@ export function extractSubmissionData(
       // Release fields
       case 'releaseTitle':
         submission.releaseTitle = value && value.trim() ? value.trim() : undefined
+        // If not found via mapping, try common column name variations
+        if (!submission.releaseTitle) {
+          // Try common variations
+          const variations = [
+            'Album/Single Name',
+            'Album/Single',
+            'Release Title',
+            'Title',
+            'Album Name',
+            'Single Name',
+            'Release Name',
+          ]
+          for (const variant of variations) {
+            const variantValue = row[variant] || row[normalizeColumnName(variant)]
+            if (variantValue && variantValue.trim()) {
+              submission.releaseTitle = variantValue.trim()
+              break
+            }
+          }
+        }
         break
       case 'releaseType':
         const typeLower = value.toLowerCase()
