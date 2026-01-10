@@ -5,7 +5,7 @@ import { prisma } from '@/lib/db'
 import { processAllRows, processRow } from '../route'
 import { parseCSV } from '@/lib/csv-importer'
 import type { ParsedRow, MappingConfig } from '@/lib/csv-importer'
-import { updateImportSessionProgress, completeImportSession, failImportSession } from '@/lib/csv-import-session'
+import { updateImportSessionProgress, completeImportSession, failImportSession, resumeImportSession } from '@/lib/csv-import-session'
 
 // Batch size - process this many rows per API call
 // Keep it small to stay within Vercel's 10-second free tier limit
@@ -45,34 +45,99 @@ export async function POST(req: NextRequest) {
     }
 
     // Get the import session
-    const importSession = await prisma.importSession.findUnique({
+    let importSession = await prisma.importSession.findUnique({
       where: { id: sessionId },
     })
 
     if (!importSession) {
+      // #region agent log
+      const logDataNotFound = {
+        location: 'app/api/import/csv/process-batch/route.ts:48',
+        message: 'Session not found',
+        data: { sessionId },
+        timestamp: Date.now(),
+        sessionId: 'debug-session',
+        runId: 'run1',
+        hypothesisId: 'C',
+      };
+      console.error('[DEBUG] Session Not Found:', logDataNotFound);
+      fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataNotFound) }).catch(() => {});
+      // #endregion
       return NextResponse.json({ error: 'Session not found' }, { status: 404 })
     }
 
     if (importSession.userId !== session.user.id) {
+      // #region agent log
+      const logDataUnauthorized = {
+        location: 'app/api/import/csv/process-batch/route.ts:58',
+        message: 'Unauthorized access to session',
+        data: { sessionId, userId: session.user.id, sessionUserId: importSession.userId },
+        timestamp: Date.now(),
+        sessionId: 'debug-session',
+        runId: 'run1',
+        hypothesisId: 'C',
+      };
+      console.error('[DEBUG] Unauthorized:', logDataUnauthorized);
+      fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataUnauthorized) }).catch(() => {});
+      // #endregion
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    }
+
+    // If paused, auto-resume it (batch processor should always process if called)
+    if (importSession.status === 'paused') {
+      // #region agent log
+      const logDataResume = {
+        location: 'app/api/import/csv/process-batch/route.ts:70',
+        message: 'Session paused - auto-resuming',
+        data: {
+          sessionId,
+          rowsProcessed: importSession.rowsProcessed,
+          totalRows: importSession.totalRows,
+        },
+        timestamp: Date.now(),
+        sessionId: 'debug-session',
+        runId: 'run1',
+        hypothesisId: 'C',
+      };
+      console.log('[DEBUG] Auto-resuming:', logDataResume);
+      fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataResume) }).catch(() => {});
+      // #endregion
+      await resumeImportSession(sessionId)
+      // Re-fetch session after resume to get updated status
+      const updatedSession = await prisma.importSession.findUnique({
+        where: { id: sessionId },
+      })
+      if (!updatedSession) {
+        return NextResponse.json({ error: 'Session not found after resume' }, { status: 404 })
+      }
+      // Use updated session for rest of processing
+      importSession = updatedSession
     }
 
     // Check if already completed or failed
     if (importSession.status === 'completed' || importSession.status === 'failed' || importSession.status === 'cancelled') {
+      // #region agent log
+      const logDataCompleted = {
+        location: 'app/api/import/csv/process-batch/route.ts:90',
+        message: 'Session already completed/failed/cancelled',
+        data: {
+          sessionId,
+          status: importSession.status,
+          rowsProcessed: importSession.rowsProcessed,
+          totalRows: importSession.totalRows,
+        },
+        timestamp: Date.now(),
+        sessionId: 'debug-session',
+        runId: 'run1',
+        hypothesisId: 'C',
+      };
+      console.log('[DEBUG] Session Completed:', logDataCompleted);
+      fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataCompleted) }).catch(() => {});
+      // #endregion
       return NextResponse.json({
         success: true,
         completed: true,
         status: importSession.status,
-        rowsProcessed: importSession.rowsProcessed,
-        totalRows: importSession.totalRows,
-      })
-    }
-
-    // Check if paused
-    if (importSession.status === 'paused') {
-      return NextResponse.json({
-        success: true,
-        paused: true,
         rowsProcessed: importSession.rowsProcessed,
         totalRows: importSession.totalRows,
       })

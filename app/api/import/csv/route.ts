@@ -752,11 +752,90 @@ export async function POST(req: NextRequest) {
     const existingSession = await findExistingSession(session.user.id, fileHash)
     
     if (existingSession) {
+      // If existing session is paused, resume it automatically
+      // If it's stuck at 0% for more than 5 minutes, treat it as failed and create a new one
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000)
+      const isStuck = existingSession.rowsProcessed === 0 && existingSession.startedAt < fiveMinutesAgo
+      
+      if (existingSession.status === 'paused') {
+        // Resume paused session
+        await resumeImportSession(existingSession.id)
+        // #region agent log
+        const logDataResume = {
+          location: 'app/api/import/csv/route.ts:752',
+          message: 'Resuming existing paused session',
+          data: {
+            sessionId: existingSession.id,
+            wasPaused: true,
+            rowsProcessed: existingSession.rowsProcessed,
+            totalRows: existingSession.totalRows,
+          },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          runId: 'run1',
+          hypothesisId: 'F',
+        };
+        console.log('[DEBUG] Resuming Session:', logDataResume);
+        fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataResume) }).catch(() => {});
+        // #endregion
+        // Return resumed session - batch processor will continue from where it left off
       return NextResponse.json({
         sessionId: existingSession.id,
+          totalRows: existingSession.totalRows,
+          rowsProcessed: existingSession.rowsProcessed || 0,
+          message: 'Resumed existing paused session',
+          existing: true,
+          needsMore: existingSession.totalRows > (existingSession.rowsProcessed || 0),
+        })
+      } else if (isStuck) {
+        // Session is stuck at 0% - mark as failed and create new one
+        await failImportSession(existingSession.id, 'Import stuck at 0% - creating new session')
+        // Continue to create new session below
+        // #region agent log
+        const logDataStuck = {
+          location: 'app/api/import/csv/route.ts:765',
+          message: 'Existing session stuck at 0% - creating new session',
+          data: {
+            oldSessionId: existingSession.id,
+            rowsProcessed: existingSession.rowsProcessed,
+            startedAt: existingSession.startedAt,
+          },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          runId: 'run1',
+          hypothesisId: 'F',
+        };
+        console.log('[DEBUG] Session Stuck:', logDataStuck);
+        fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataStuck) }).catch(() => {});
+        // #endregion
+      } else if (existingSession.status === 'in_progress') {
+        // Existing session is in progress - reuse it
+        // #region agent log
+        const logDataReuse = {
+          location: 'app/api/import/csv/route.ts:775',
+          message: 'Reusing existing in-progress session',
+          data: {
+            sessionId: existingSession.id,
+            rowsProcessed: existingSession.rowsProcessed,
+            totalRows: existingSession.totalRows,
+          },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          runId: 'run1',
+          hypothesisId: 'F',
+        };
+        console.log('[DEBUG] Reusing Session:', logDataReuse);
+        fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataReuse) }).catch(() => {});
+        // #endregion
+      return NextResponse.json({
+        sessionId: existingSession.id,
+          totalRows: existingSession.totalRows,
+          rowsProcessed: existingSession.rowsProcessed || 0,
         message: 'Found existing import session',
         existing: true,
-      })
+          needsMore: existingSession.totalRows > (existingSession.rowsProcessed || 0),
+        })
+      }
     }
     
     // Store CSV rows in mappingConfig for chunked processing
@@ -797,10 +876,10 @@ export async function POST(req: NextRequest) {
     let importSession
     try {
       importSession = await createImportSession({
-        userId: session.user.id,
-        fileHash,
-        fileName: fileName || 'import.csv',
-        totalRows: rows.length,
+      userId: session.user.id,
+      fileHash,
+      fileName: fileName || 'import.csv',
+      totalRows: rows.length,
         mappingConfig: mappingConfigWithRows,
       })
       
