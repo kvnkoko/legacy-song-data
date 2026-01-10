@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { processAllRows, processRow } from '../route'
+import { parseCSV } from '@/lib/csv-importer'
 import type { ParsedRow, MappingConfig } from '@/lib/csv-importer'
 import { updateImportSessionProgress, completeImportSession, failImportSession } from '@/lib/csv-import-session'
 
@@ -97,13 +98,73 @@ export async function POST(req: NextRequest) {
     // #endregion
 
     // Get CSV rows from mappingConfig
-    const mappingConfig = importSession.mappingConfig as MappingConfig & { _csvRows?: ParsedRow[] }
+    const mappingConfig = importSession.mappingConfig as MappingConfig & { 
+      _csvRows?: ParsedRow[]
+      _csvContent?: string
+    }
     
-    if (!mappingConfig._csvRows) {
+    let rows: ParsedRow[]
+    
+    if (mappingConfig._csvRows && mappingConfig._csvRows.length > 0) {
+      rows = mappingConfig._csvRows
+    } else if (mappingConfig._csvContent) {
+      // CSV rows not available, but we have the original CSV content - re-parse it
+      // #region agent log
+      const logDataReParse = {
+        location: 'app/api/import/csv/process-batch/route.ts:60',
+        message: 'CSV rows not found, re-parsing from CSV content',
+        data: {
+          sessionId,
+          hasCsvContent: !!mappingConfig._csvContent,
+          csvContentLength: mappingConfig._csvContent?.length || 0,
+        },
+        timestamp: Date.now(),
+        sessionId: 'debug-session',
+        runId: 'run1',
+        hypothesisId: 'C',
+      };
+      console.log('[DEBUG] Re-parsing CSV:', logDataReParse);
+      fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataReParse) }).catch(() => {});
+      // #endregion
+      
+      try {
+        const parsed = parseCSV(mappingConfig._csvContent)
+        rows = parsed.rows
+        
+        // Update mappingConfig with parsed rows
+        const updatedMappingConfig = {
+          ...mappingConfig,
+          _csvRows: rows,
+        }
+        
+        await prisma.importSession.update({
+          where: { id: sessionId },
+          data: { mappingConfig: updatedMappingConfig },
+        })
+      } catch (parseError: any) {
+        // #region agent log
+        const logDataParseError = {
+          location: 'app/api/import/csv/process-batch/route.ts:85',
+          message: 'Failed to re-parse CSV content',
+          data: {
+            sessionId,
+            error: parseError.message || 'Unknown error',
+          },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          runId: 'run1',
+          hypothesisId: 'C',
+        };
+        console.error('[DEBUG] CSV Re-parse Failed:', logDataParseError);
+        fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataParseError) }).catch(() => {});
+        // #endregion
+        return NextResponse.json({ error: `Failed to parse CSV: ${parseError.message}` }, { status: 400 })
+      }
+    } else {
       // #region agent log
       const logData3 = {
         location: 'app/api/import/csv/process-batch/route.ts:60',
-        message: 'CSV rows not found in session',
+        message: 'CSV rows and content not found in session',
         data: {
           sessionId,
           hasMappingConfig: !!mappingConfig,
@@ -114,13 +175,11 @@ export async function POST(req: NextRequest) {
         runId: 'run1',
         hypothesisId: 'C',
       };
-      console.error('[DEBUG] Missing CSV Rows:', logData3);
+      console.error('[DEBUG] Missing CSV Data:', logData3);
       fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logData3) }).catch(() => {});
       // #endregion
-      return NextResponse.json({ error: 'CSV rows not found in session' }, { status: 400 })
+      return NextResponse.json({ error: 'CSV rows and content not found in session' }, { status: 400 })
     }
-
-    const rows = mappingConfig._csvRows
     const startFromRow = importSession.rowsProcessed
     const endRow = Math.min(startFromRow + BATCH_SIZE, rows.length)
     const batchRows = rows.slice(startFromRow, endRow)

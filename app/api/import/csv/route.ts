@@ -761,9 +761,12 @@ export async function POST(req: NextRequest) {
     
     // Store CSV rows in mappingConfig for chunked processing
     // This allows us to process in small batches on Vercel free tier
+    // Note: For very large CSVs, we might hit database JSON size limits
+    // In that case, we'll need to store CSV content separately or process differently
     const mappingConfigWithRows = {
       ...mappingConfig,
       _csvRows: rows,
+      _csvContent: csvContent, // Store original CSV content as backup
       _submissionsCreated: 0,
       _submissionsUpdated: 0,
       _songsCreated: 0,
@@ -771,14 +774,72 @@ export async function POST(req: NextRequest) {
       _failedRows: [] as Array<{ row: number; message: string }>,
     }
     
+    // #region agent log
+    const logDataCreate = {
+      location: 'app/api/import/csv/route.ts:762',
+      message: 'Creating import session',
+      data: {
+        totalRows: rows.length,
+        csvRowsSize: JSON.stringify(rows).length,
+        mappingConfigSize: JSON.stringify(mappingConfigWithRows).length,
+        hasRows: rows.length > 0,
+      },
+      timestamp: Date.now(),
+      sessionId: 'debug-session',
+      runId: 'run1',
+      hypothesisId: 'D',
+    };
+    console.log('[DEBUG] Creating Session:', logDataCreate);
+    fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataCreate) }).catch(() => {});
+    // #endregion
+    
     // Create import session
-    const importSession = await createImportSession({
-      userId: session.user.id,
-      fileHash,
-      fileName: fileName || 'import.csv',
-      totalRows: rows.length,
-      mappingConfig: mappingConfigWithRows,
-    })
+    let importSession
+    try {
+      importSession = await createImportSession({
+        userId: session.user.id,
+        fileHash,
+        fileName: fileName || 'import.csv',
+        totalRows: rows.length,
+        mappingConfig: mappingConfigWithRows,
+      })
+      
+      // #region agent log
+      const logDataCreated = {
+        location: 'app/api/import/csv/route.ts:775',
+        message: 'Import session created successfully',
+        data: {
+          sessionId: importSession.id,
+          totalRows: rows.length,
+        },
+        timestamp: Date.now(),
+        sessionId: 'debug-session',
+        runId: 'run1',
+        hypothesisId: 'D',
+      };
+      console.log('[DEBUG] Session Created:', logDataCreated);
+      fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataCreated) }).catch(() => {});
+      // #endregion
+    } catch (createError: any) {
+      // #region agent log
+      const logDataCreateError = {
+        location: 'app/api/import/csv/route.ts:775',
+        message: 'Failed to create import session',
+        data: {
+          error: createError.message || 'Unknown error',
+          stack: createError.stack,
+          totalRows: rows.length,
+        },
+        timestamp: Date.now(),
+        sessionId: 'debug-session',
+        runId: 'run1',
+        hypothesisId: 'D',
+      };
+      console.error('[DEBUG] Session Creation Failed:', logDataCreateError);
+      fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataCreateError) }).catch(() => {});
+      // #endregion
+      throw new Error(`Failed to create import session: ${createError.message}. This might be due to CSV size limits.`)
+    }
     
     // For Vercel free tier: Process first batch synchronously
     // Frontend will call /api/import/csv/process-batch to continue
@@ -841,6 +902,8 @@ export async function POST(req: NextRequest) {
 
         for (let i = 0; i < firstBatch.length; i++) {
           const row = firstBatch[i]
+          // Always increment rowsProcessed - we're attempting to process this row
+          rowsProcessedInFirstBatch++
           try {
             await prisma.$transaction(async (tx) => {
               const result = await processRow(row, i, mappings, tx, caches)
@@ -848,7 +911,6 @@ export async function POST(req: NextRequest) {
                 if (result.releaseCreated) submissionsCreated++
                 if (result.releaseUpdated) submissionsUpdated++
                 if (result.tracksCreated) songsCreated += result.tracksCreated
-                rowsProcessedInFirstBatch++
               } else {
                 errors.push({ row: i + 1, message: result.error || 'Unknown error' })
                 rowsSkipped++
@@ -963,27 +1025,39 @@ export async function POST(req: NextRequest) {
             errors: errors.length > 0 ? errors : undefined,
           })
         }
-      } catch (batchError: any) {
-        // #region agent log
-        const logData7 = {
-          location: 'app/api/import/csv/route.ts:850',
-          message: 'First batch processing failed',
-          data: {
-            error: batchError.message || 'Unknown error',
-            stack: batchError.stack,
-            sessionId: importSession.id,
-          },
-          timestamp: Date.now(),
-          sessionId: 'debug-session',
-          runId: 'run1',
-          hypothesisId: 'A',
-        };
-        console.error('[DEBUG] Batch Processing Failed:', logData7);
-        fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logData7) }).catch(() => {});
-        // #endregion
-        // Don't fail the entire import - let batch processor handle it
-        console.error('First batch processing error (will retry via batch processor):', batchError)
-      }
+        } catch (batchError: any) {
+          // #region agent log
+          const logData7 = {
+            location: 'app/api/import/csv/route.ts:850',
+            message: 'First batch processing failed',
+            data: {
+              error: batchError.message || 'Unknown error',
+              stack: batchError.stack,
+              sessionId: importSession.id,
+              rowsProcessedInFirstBatch,
+            },
+            timestamp: Date.now(),
+            sessionId: 'debug-session',
+            runId: 'run1',
+            hypothesisId: 'A',
+          };
+          console.error('[DEBUG] Batch Processing Failed:', logData7);
+          fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logData7) }).catch(() => {});
+          // #endregion
+          
+          // Even if batch processing fails, try to update progress with what we have
+          try {
+            await updateImportSessionProgress(importSession.id, rowsProcessedInFirstBatch)
+          } catch (progressError: any) {
+            console.error('Failed to update progress after batch error:', progressError)
+          }
+          
+          // Don't fail the entire import - let batch processor handle it
+          console.error('First batch processing error (will retry via batch processor):', batchError)
+        }
+    } else {
+      // No rows to process in first batch (shouldn't happen, but handle it)
+      rowsProcessedInFirstBatch = 0
     }
     
     // #region agent log
