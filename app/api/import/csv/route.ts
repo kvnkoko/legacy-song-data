@@ -43,7 +43,6 @@ export async function processRow(
   success: boolean
   error?: string
   releaseCreated?: boolean
-  releaseUpdated?: boolean
   tracksCreated?: number
 }> {
   let submission: any = null
@@ -261,56 +260,57 @@ export async function processRow(
       submittedAt: submission.submittedAt || submission.createdTime || new Date(),
     }
     
-    // Upsert release
-    let release
-    let releaseCreated = false
-    let releaseUpdated = false
+    // Check for exact match - skip if found (don't update existing releases)
+    let existing: any = null
     
     try {
       if (submission.submissionId) {
-        const existing = await tx.release.findFirst({
+        // Exact match: submissionId
+        existing = await tx.release.findFirst({
           where: { submissionId: submission.submissionId },
         })
-        
-      if (existing) {
-        release = await tx.release.update({
-          where: { id: existing.id },
-          data: releaseData,
-        })
-        releaseUpdated = true
       } else {
+        // Exact match: title + artistId
+        existing = await tx.release.findFirst({
+          where: {
+            title: submission.releaseTitle.trim(),
+            artistId: primaryArtist.id,
+          },
+        })
+      }
+      
+      // If exact match found, skip this row (don't update or create)
+      if (existing) {
+        return {
+          success: false,
+          error: `Exact match found - release already exists (ID: ${existing.id}, Title: "${existing.title}")`,
+        }
+      }
+    } catch (checkError: any) {
+      // If check fails, continue to create (better to create than skip)
+      console.warn(`[IMPORT] Warning: Failed to check for existing release (row ${rowIndex + 1}):`, checkError.message)
+    }
+    
+    // No exact match found - create new release
+    let release
+    let releaseCreated = false
+    
+    try {
+      if (submission.submissionId) {
         release = await tx.release.create({
           data: {
             ...releaseData,
             submissionId: submission.submissionId,
           },
         })
-        releaseCreated = true
-      }
-    } else {
-      // No submissionId - try to find by title and artist
-      const existing = await tx.release.findFirst({
-        where: {
-          title: submission.releaseTitle.trim(),
-          artistId: primaryArtist.id,
-        },
-      })
-      
-      if (existing) {
-        release = await tx.release.update({
-          where: { id: existing.id },
-          data: releaseData,
-        })
-        releaseUpdated = true
       } else {
         release = await tx.release.create({
           data: releaseData,
         })
-        releaseCreated = true
       }
-    }
+      releaseCreated = true
     } catch (releaseError: any) {
-      console.error(`[IMPORT] ❌ Row ${rowIndex + 1}: Failed to create/update release:`, releaseError.message)
+      console.error(`[IMPORT] ❌ Row ${rowIndex + 1}: Failed to create release:`, releaseError.message)
       console.error(`[IMPORT] Release data:`, {
         title: releaseData.title,
         artistId: releaseData.artistId,
@@ -616,7 +616,6 @@ export async function processRow(
     return {
       success: true,
       releaseCreated,
-      releaseUpdated,
       tracksCreated,
     }
   } catch (error: any) {
@@ -647,7 +646,7 @@ export async function processAllRows(
   const mappings = mappingConfig.columns
   const errors: Array<{ row: number; message: string }> = []
   let submissionsCreated = 0
-  let submissionsUpdated = 0
+  // Note: We no longer track submissionsUpdated - exact matches are skipped instead
   let songsCreated = 0
   let rowsSkipped = 0
   
@@ -660,7 +659,7 @@ export async function processAllRows(
       })
       
       if (session) {
-        const successCount = submissionsCreated + submissionsUpdated
+        const successCount = submissionsCreated
         await prisma.importSession.update({
           where: { id: sessionId },
           data: {
@@ -744,9 +743,6 @@ export async function processAllRows(
             if (result.releaseCreated) {
               submissionsCreated++
             }
-            if (result.releaseUpdated) {
-              submissionsUpdated++
-            }
             if (result.tracksCreated) {
               songsCreated += result.tracksCreated
             }
@@ -783,12 +779,11 @@ export async function processAllRows(
       }
     }
     
-    console.log(`✅ Import complete: ${submissionsCreated} created, ${submissionsUpdated} updated, ${songsCreated} tracks, ${rowsSkipped} skipped`)
+    console.log(`✅ Import complete: ${submissionsCreated} created, ${songsCreated} tracks, ${rowsSkipped} skipped`)
 
     // Complete the session
     await completeImportSession(sessionId, {
       submissionsCreated,
-      submissionsUpdated,
       songsCreated,
       rowsSkipped,
       errors: errors.length > 0 ? errors : undefined,
@@ -924,7 +919,6 @@ export async function POST(req: NextRequest) {
       _csvRows: rows,
       _csvContent: csvContent, // Store original CSV content as backup
       _submissionsCreated: 0,
-      _submissionsUpdated: 0,
       _songsCreated: 0,
       _rowsSkipped: 0,
       _failedRows: [] as Array<{ row: number; message: string }>,
