@@ -74,33 +74,7 @@ export async function processRow(
       runId: 'run1',
       hypothesisId: 'L',
     };
-    // Log extraction details - ALWAYS log first 3 rows for debugging
-    if (rowIndex < 3) {
-      console.log(`\n[IMPORT] ========== Row ${rowIndex + 1} Extraction ==========`)
-      console.log(`[IMPORT] Row keys (first 20):`, Object.keys(row).slice(0, 20))
-      console.log(`[IMPORT] ReleaseTitle Mapping:`, releaseTitleMapping ? {
-        csvColumn: releaseTitleMapping.csvColumn,
-        targetField: releaseTitleMapping.targetField,
-        fieldType: releaseTitleMapping.fieldType,
-      } : '❌ NOT FOUND IN MAPPINGS!')
-      
-      if (releaseTitleMapping) {
-        console.log(`[IMPORT] Looking for column: "${releaseTitleMapping.csvColumn}"`)
-        console.log(`[IMPORT] row["${releaseTitleMapping.csvColumn}"] =`, row[releaseTitleMapping.csvColumn]?.substring(0, 100) || '❌ NOT FOUND')
-        console.log(`[IMPORT] row[normalized] =`, row[normalizeColumnName(releaseTitleMapping.csvColumn)]?.substring(0, 100) || '❌ NOT FOUND')
-      }
-      
-      console.log(`[IMPORT] Extracted submission:`, {
-        hasReleaseTitle: !!submission.releaseTitle,
-        releaseTitle: submission.releaseTitle?.substring(0, 100) || '❌ MISSING',
-        hasArtistName: !!submission.artistName,
-        artistName: submission.artistName?.substring(0, 50) || 'MISSING',
-        submissionKeys: Object.keys(submission),
-      })
-      console.log(`[IMPORT] ============================================\n`)
-    } else if (rowIndex % 50 === 0) {
-      console.log(`[IMPORT] Row ${rowIndex + 1}: hasReleaseTitle=${!!submission.releaseTitle}`)
-    }
+    // Only log errors, not every extraction (performance optimization)
     
     // #region agent log
     fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataExtraction) }).catch(() => {});
@@ -298,55 +272,43 @@ export async function processRow(
           where: { submissionId: submission.submissionId },
         })
         
-        if (existing) {
-          release = await tx.release.update({
-            where: { id: existing.id },
-            data: releaseData,
-          })
-          releaseUpdated = true
-          if (rowIndex < 3) {
-            console.log(`[IMPORT] ✅ Row ${rowIndex + 1}: Updated existing release "${release.title}" (ID: ${release.id})`)
-          }
-        } else {
-          release = await tx.release.create({
-            data: {
-              ...releaseData,
-              submissionId: submission.submissionId,
-            },
-          })
-          releaseCreated = true
-          if (rowIndex < 3) {
-            console.log(`[IMPORT] ✅ Row ${rowIndex + 1}: Created new release "${release.title}" (ID: ${release.id})`)
-          }
-        }
+      if (existing) {
+        release = await tx.release.update({
+          where: { id: existing.id },
+          data: releaseData,
+        })
+        releaseUpdated = true
       } else {
-        // No submissionId - try to find by title and artist
-        const existing = await tx.release.findFirst({
-          where: {
-            title: submission.releaseTitle.trim(),
-            artistId: primaryArtist.id,
+        release = await tx.release.create({
+          data: {
+            ...releaseData,
+            submissionId: submission.submissionId,
           },
         })
-        
-        if (existing) {
-          release = await tx.release.update({
-            where: { id: existing.id },
-            data: releaseData,
-          })
-          releaseUpdated = true
-          if (rowIndex < 3) {
-            console.log(`[IMPORT] ✅ Row ${rowIndex + 1}: Updated existing release "${release.title}" (ID: ${release.id}) by title/artist`)
-          }
-        } else {
-          release = await tx.release.create({
-            data: releaseData,
-          })
-          releaseCreated = true
-          if (rowIndex < 3) {
-            console.log(`[IMPORT] ✅ Row ${rowIndex + 1}: Created new release "${release.title}" (ID: ${release.id}) by title/artist`)
-          }
-        }
+        releaseCreated = true
       }
+    } else {
+      // No submissionId - try to find by title and artist
+      const existing = await tx.release.findFirst({
+        where: {
+          title: submission.releaseTitle.trim(),
+          artistId: primaryArtist.id,
+        },
+      })
+      
+      if (existing) {
+        release = await tx.release.update({
+          where: { id: existing.id },
+          data: releaseData,
+        })
+        releaseUpdated = true
+      } else {
+        release = await tx.release.create({
+          data: releaseData,
+        })
+        releaseCreated = true
+      }
+    }
     } catch (releaseError: any) {
       console.error(`[IMPORT] ❌ Row ${rowIndex + 1}: Failed to create/update release:`, releaseError.message)
       console.error(`[IMPORT] Release data:`, {
@@ -1035,11 +997,11 @@ export async function POST(req: NextRequest) {
       throw new Error(`Failed to create import session: ${createError.message}. This might be due to CSV size limits.`)
     }
     
-    // Process first small batch synchronously (like it used to work)
+    // Process first batch synchronously (like it used to work)
     // Only skip for Vercel if we detect we're on Vercel (VERCEL env var)
     // For localhost, process first batch to show immediate progress
     const isVercel = process.env.VERCEL === '1'
-    const FIRST_BATCH_SIZE = 3 // Small batch to process synchronously for immediate feedback
+    const FIRST_BATCH_SIZE = isVercel ? 0 : 10 // Process 10 rows synchronously on localhost, skip on Vercel
     
     let rowsProcessedInFirstBatch = 0
     

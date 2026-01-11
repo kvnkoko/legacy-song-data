@@ -8,10 +8,10 @@ import type { ParsedRow, MappingConfig } from '@/lib/csv-importer'
 import { updateImportSessionProgress, completeImportSession, failImportSession, resumeImportSession } from '@/lib/csv-import-session'
 
 // Batch size - process this many rows per API call
-// Keep it small to stay within Vercel's 10-second free tier limit
-// Reduced from 20 to 5 because each row takes ~3-4 seconds, so 5 rows = ~15-20 seconds
-// For localhost with better performance, we can increase this, but for Vercel compatibility, keep it small
-const BATCH_SIZE = 5
+// For localhost: Use larger batches (20 rows) for better performance
+// For Vercel free tier: Use smaller batches (5 rows) to stay within 10-second limit
+const isVercel = process.env.VERCEL === '1'
+const BATCH_SIZE = isVercel ? 5 : 20
 
 export async function POST(req: NextRequest) {
   let sessionId: string | null = null
@@ -452,22 +452,16 @@ export async function POST(req: NextRequest) {
           if (result.success) {
             if (result.releaseCreated) {
               submissionsCreated++
-              if (rowIndex < 5) {
-                console.log(`[IMPORT] ✅ Row ${rowIndex + 1}: Release CREATED (total created: ${submissionsCreated})`)
-              }
             }
             if (result.releaseUpdated) {
               submissionsUpdated++
-              if (rowIndex < 5) {
-                console.log(`[IMPORT] ✅ Row ${rowIndex + 1}: Release UPDATED (total updated: ${submissionsUpdated})`)
-              }
             }
             if (result.tracksCreated) {
               songsCreated += result.tracksCreated
             }
           } else {
-            // Log first few errors in detail
-            if (errors.length < 3) {
+            // Only log first few errors to avoid spam
+            if (errors.length < 5) {
               console.error(`[IMPORT] ❌ Row ${rowIndex + 1} FAILED:`, result.error)
             }
             errors.push({
@@ -481,27 +475,10 @@ export async function POST(req: NextRequest) {
           maxWait: 5000,
         })
         
-        const rowDuration = Date.now() - rowStartTime
-        // Log every 5th row or if row takes longer than 2 seconds
-        if (i % 5 === 0 || rowDuration > 2000) {
-          // #region agent log
-          const logDataRow = {
-            location: 'app/api/import/csv/process-batch/route.ts:410',
-            message: `Row ${rowIndex + 1} processed`,
-            data: {
-              sessionId,
-              rowIndex: rowIndex + 1,
-              duration: rowDuration,
-              success: !errors.some(e => e.row === rowIndex + 1),
-            },
-            timestamp: Date.now(),
-            sessionId: 'debug-session',
-            runId: 'run1',
-            hypothesisId: 'J',
-          };
-          console.log(`[DEBUG] Row ${rowIndex + 1} processed in ${rowDuration}ms`);
-          fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataRow) }).catch(() => {});
-          // #endregion
+        // Only log progress every 10 rows to reduce console spam
+        if (i % 10 === 0 && i > 0) {
+          const rowDuration = Date.now() - rowStartTime
+          console.log(`[IMPORT] Processed ${i + 1}/${batchRows.length} rows in batch (Row ${rowIndex + 1} took ${rowDuration}ms)`)
         }
       } catch (error: any) {
         console.error(`❌ Row ${rowIndex + 1} failed:`, error.message || 'Unknown error')
