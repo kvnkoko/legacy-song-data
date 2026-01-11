@@ -863,37 +863,39 @@ export default function ImportCSVPage() {
           }
         }
         
-        // Start processing batches
-        // Always check if there are more rows to process, even if first batch returned 0
-        // This ensures we continue processing even if first batch failed silently
-        // If needsMore is undefined, default to true if there are rows
-        const hasMoreRows = (result.needsMore !== false) && (result.totalRows ? (result.totalRows > (result.rowsProcessed || 0)) : true)
+        // Start processing batches or polling for progress
+        // On localhost: needsMore=false means background processing is running, so we poll for progress
+        // On Vercel: needsMore=true means we need to call batch processor
+        const needsBatchProcessor = result.needsMore === true
+        const shouldPollProgress = result.totalRows ? (result.totalRows > (result.rowsProcessed || 0)) : true
         
         // #region agent log
         const logDataFrontendStart = {
           location: 'app/import-csv/page.tsx:692',
-          message: 'Frontend: Starting batch processing decision',
+          message: 'Frontend: Starting import processing',
           data: {
             sessionId: result.sessionId,
             totalRows: result.totalRows,
             rowsProcessed: result.rowsProcessed || 0,
             needsMore: result.needsMore,
-            hasMoreRows,
+            needsBatchProcessor,
+            shouldPollProgress,
           },
           timestamp: Date.now(),
           sessionId: 'debug-session',
           runId: 'run1',
           hypothesisId: 'B',
         };
-        console.log('[DEBUG] Frontend Batch Decision:', logDataFrontendStart);
+        console.log('[DEBUG] Frontend Start:', logDataFrontendStart);
         fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataFrontendStart) }).catch(() => {});
         // #endregion
         
-        if (hasMoreRows) {
+        if (needsBatchProcessor) {
+          // Vercel: Call batch processor
           // #region agent log
           const logDataFrontendSchedule = {
             location: 'app/import-csv/page.tsx:710',
-            message: 'Frontend: Scheduling batch processor',
+            message: 'Frontend: Scheduling batch processor (Vercel)',
             data: {
               sessionId: result.sessionId,
               delay: 100,
@@ -903,12 +905,70 @@ export default function ImportCSVPage() {
             runId: 'run1',
             hypothesisId: 'B',
           };
-          console.log('[DEBUG] Frontend Scheduling:', logDataFrontendSchedule);
+          console.log('[DEBUG] Frontend Scheduling Batch:', logDataFrontendSchedule);
           fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataFrontendSchedule) }).catch(() => {});
           // #endregion
           pollingTimeoutRef.current = setTimeout(processNextBatch, 100)
+        } else if (shouldPollProgress) {
+          // Localhost: Background processing is running, just poll for progress
+          // Use the same polling mechanism as the existing import check
+          const pollProgress = async () => {
+            if (!pollingActiveRef.current) {
+              return
+            }
+            
+            try {
+              const progressResponse = await fetch(
+                `/api/import/csv/progress-simple?sessionId=${result.sessionId}`
+              )
+              if (progressResponse.ok) {
+                const progressData = await progressResponse.json()
+                
+                if (progressData.status === 'cancelled') {
+                  setLoading(false)
+                  setPollingActive(false)
+                  pollingActiveRef.current = false
+                  setError('Import was cancelled')
+                  setImportProgress(null)
+                  return
+                }
+                
+                setImportProgress({
+                  sessionId: result.sessionId,
+                  totalRows: progressData.totalRows || result.totalRows,
+                  rowsProcessed: progressData.rowsProcessed || 0,
+                  percentage: progressData.percentage || 0,
+                  status: progressData.status || 'in_progress',
+                })
+                
+                if (progressData.status === 'completed') {
+                  setLoading(false)
+                  setPollingActive(false)
+                  pollingActiveRef.current = false
+                  alert(`Import completed!\n\nProcessed: ${progressData.rowsProcessed} rows`)
+                  router.push('/releases').catch(() => { window.location.href = '/releases' })
+                } else if (progressData.status === 'failed') {
+                  setLoading(false)
+                  setPollingActive(false)
+                  pollingActiveRef.current = false
+                  setError(progressData.error || 'Import failed')
+                  setImportProgress(null)
+                } else if (progressData.status === 'in_progress' && pollingActiveRef.current) {
+                  pollingTimeoutRef.current = setTimeout(pollProgress, 1000)
+                }
+              }
+            } catch (err) {
+              console.warn('Progress polling error (import continues):', err)
+              if (pollingActiveRef.current) {
+                pollingTimeoutRef.current = setTimeout(pollProgress, 2000)
+              }
+            }
+          }
+          
+          // Start polling immediately
+          pollingTimeoutRef.current = setTimeout(pollProgress, 500)
         } else {
-          // First batch completed everything, check for completion
+          // Already complete, check status
           // #region agent log
           const logDataFrontendCheck = {
             location: 'app/import-csv/page.tsx:720',
