@@ -997,147 +997,14 @@ export async function POST(req: NextRequest) {
       throw new Error(`Failed to create import session: ${createError.message}. This might be due to CSV size limits.`)
     }
     
-    // Process first batch synchronously (like it used to work)
-    // Only skip for Vercel if we detect we're on Vercel (VERCEL env var)
-    // For localhost, process first batch to show immediate progress
+    // Restore original fast processing for localhost (like List8 import)
+    // Use chunked batch processing only for Vercel free tier
     const isVercel = process.env.VERCEL === '1'
-    const FIRST_BATCH_SIZE = isVercel ? 0 : 10 // Process 10 rows synchronously on localhost, skip on Vercel
     
-    let rowsProcessedInFirstBatch = 0
-    
-    if (!isVercel && rows.length > 0) {
-      // Process first small batch synchronously on localhost
-      const firstBatch = rows.slice(0, Math.min(FIRST_BATCH_SIZE, rows.length))
-      
-      // #region agent log
-      const logData1 = {
-        location: 'app/api/import/csv/route.ts:920',
-        message: 'Processing first batch synchronously (localhost)',
-        data: {
-          totalRows: rows.length,
-          firstBatchSize: firstBatch.length,
-          sessionId: importSession.id,
-          strategy: 'sync-first-batch',
-        },
-        timestamp: Date.now(),
-        sessionId: 'debug-session',
-        runId: 'run1',
-        hypothesisId: 'K',
-      };
-      console.log('[DEBUG] Processing First Batch:', logData1);
-      fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logData1) }).catch(() => {});
-      // #endregion
-      
-      try {
-        const mappings = mappingConfigWithRows.columns
-        const errors: Array<{ row: number; message: string }> = []
-        let submissionsCreated = 0
-        let submissionsUpdated = 0
-        let songsCreated = 0
-        let rowsSkipped = 0
-
-        const artistCache = new Map<string, { id: string; name: string }>()
-        const employeeCache = new Map<string, string>()
-        const channelCache = new Map<string, { id: string; name: string; platform: string }>()
-        const caches = { artistCache, employeeCache, channelCache }
-
-        for (let i = 0; i < firstBatch.length; i++) {
-          const row = firstBatch[i]
-          rowsProcessedInFirstBatch++
-          
-          try {
-            await prisma.$transaction(async (tx) => {
-              const result = await processRow(row, i, mappings, tx, caches)
-              if (result.success) {
-                if (result.releaseCreated) submissionsCreated++
-                if (result.releaseUpdated) submissionsUpdated++
-                if (result.tracksCreated) songsCreated += result.tracksCreated
-              } else {
-                errors.push({ row: i + 1, message: result.error || 'Unknown error' })
-                rowsSkipped++
-              }
-            }, { timeout: 30000, maxWait: 5000 })
-          } catch (error: any) {
-            errors.push({ row: i + 1, message: `Transaction failed: ${error.message || 'Unknown error'}` })
-            rowsSkipped++
-          }
-        }
-
-        // Update progress and stats
-        await updateImportSessionProgress(importSession.id, rowsProcessedInFirstBatch)
-        
-        const updatedMappingConfig = {
-          ...mappingConfigWithRows,
-          _submissionsCreated: submissionsCreated,
-          _submissionsUpdated: submissionsUpdated,
-          _songsCreated: songsCreated,
-          _rowsSkipped: rowsSkipped,
-          _failedRows: errors,
-        }
-
-        await prisma.importSession.update({
-          where: { id: importSession.id },
-          data: { mappingConfig: updatedMappingConfig },
-        })
-
-        // #region agent log
-        const logDataFirstBatchComplete = {
-          location: 'app/api/import/csv/route.ts:980',
-          message: 'First batch processed successfully',
-          data: {
-            sessionId: importSession.id,
-            rowsProcessed: rowsProcessedInFirstBatch,
-            submissionsCreated,
-            submissionsUpdated,
-            songsCreated,
-          },
-          timestamp: Date.now(),
-          sessionId: 'debug-session',
-          runId: 'run1',
-          hypothesisId: 'K',
-        };
-        console.log('[DEBUG] First Batch Complete:', logDataFirstBatchComplete);
-        fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataFirstBatchComplete) }).catch(() => {});
-        // #endregion
-      } catch (batchError: any) {
-        // #region agent log
-        const logDataFirstBatchError = {
-          location: 'app/api/import/csv/route.ts:995',
-          message: 'First batch processing failed',
-          data: {
-            sessionId: importSession.id,
-            error: batchError.message || 'Unknown error',
-          },
-          timestamp: Date.now(),
-          sessionId: 'debug-session',
-          runId: 'run1',
-          hypothesisId: 'K',
-        };
-        console.error('[DEBUG] First Batch Error:', logDataFirstBatchError);
-        fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataFirstBatchError) }).catch(() => {});
-        // #endregion
-        // Continue anyway - batch processor will handle remaining rows
-        console.error('First batch processing error (batch processor will continue):', batchError)
-      }
-    } else if (isVercel) {
-      // Skip first batch on Vercel (for free tier compatibility)
-      // #region agent log
-      const logData1 = {
-        location: 'app/api/import/csv/route.ts:1010',
-        message: 'Skipping first batch processing (Vercel)',
-        data: {
-          totalRows: rows.length,
-          sessionId: importSession.id,
-          strategy: 'batch-processor-only',
-        },
-        timestamp: Date.now(),
-        sessionId: 'debug-session',
-        runId: 'run1',
-        hypothesisId: 'K',
-      };
-      console.log('[DEBUG] Skipping First Batch (Vercel):', logData1);
-      fetch('http://127.0.0.1:7242/ingest/d1e8ad3f-7e52-4016-811c-8857d824b667', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logData1) }).catch(() => {});
-      // #endregion
+    if (isVercel) {
+      // Vercel free tier: Use chunked batch processing
+      // Store CSV content in session for batch processor
+      const needsMore = rows.length > 0
       
       // Ensure progress is set to 0 in database
       try {
@@ -1145,10 +1012,34 @@ export async function POST(req: NextRequest) {
       } catch (progressError: any) {
         console.error('Failed to initialize progress:', progressError)
       }
+      
+      return NextResponse.json({
+        sessionId: importSession.id,
+        totalRows: rows.length,
+        rowsProcessed: 0,
+        needsMore,
+      })
+    } else {
+      // Localhost: Process all rows in background (fast, like original)
+      // Use fire-and-forget to start processing immediately
+      void (async () => {
+        try {
+          await processAllRows(importSession.id, rows, mappingConfigWithRows, 0)
+        } catch (error: any) {
+          console.error('Background import processing error:', error)
+          await failImportSession(importSession.id, error.message || 'Import processing failed')
+        }
+      })()
+      
+      // Return immediately - processing happens in background
+      return NextResponse.json({
+        sessionId: importSession.id,
+        totalRows: rows.length,
+        rowsProcessed: 0,
+        needsMore: false, // Background processing handles everything
+        message: 'Import started in background',
+      })
     }
-    
-    // Calculate needsMore - true if there are more rows to process after first batch
-    const needsMore = rows.length > rowsProcessedInFirstBatch
     
     // #region agent log
     const logData8 = {
