@@ -64,12 +64,7 @@ export async function POST(req: NextRequest) {
       await resumeImportSession(sessionId)
     }
 
-    // Try to get CSV content from session mappingConfig if not provided
-    const mappingConfig = importSession.mappingConfig as MappingConfig & {
-      _csvContent?: string
-      _csvRows?: any[]
-    }
-    
+    // Use the mappingConfig we already defined above
     let csvContentToUse = csvContent
     if (!csvContentToUse && mappingConfig._csvContent) {
       csvContentToUse = mappingConfig._csvContent
