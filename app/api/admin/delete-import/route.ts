@@ -4,6 +4,9 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { UserRole } from '@prisma/client'
 
+// Force dynamic rendering - don't execute during build
+export const dynamic = 'force-dynamic'
+
 /**
  * DELETE /api/admin/delete-import
  * Delete all data imported from a specific CSV file
